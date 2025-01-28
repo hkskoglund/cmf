@@ -36,7 +36,7 @@ read_hex_rec()
     #echo "reccmd: $reccmd recvalue: $recvalue"
 
     while read -r line; do
-        echo "read: $line" >&2
+        #echo "read: $line" >&2
         #shellcheck disable=SC2046
         set --  $(echo "$line" | fold --width=2 | paste --serial --delimiter=' ')
         while [ $# -gt 8 ]; do
@@ -135,24 +135,21 @@ create_hoydedata_gpx()
     fi
 }
 
-filter_heartrate >heartrate.log
-filter_gps >gps.log
-#jq --slurp 'sort_by(.timestamp)' heartrate.log gps.log >merged_sorted.json
-#jq '[. as $in | 
-#    reduce range(0; length) as $i (
-#        [];
-#        if (. | map(select((.timestamp - $in[$i].timestamp | abs) <= 2)) | length) == 0 then
-#            . + [$in[$i]]
-#        else
-#            map(if (.timestamp - $in[$i].timestamp | abs) <= 2 then 
-#                . * $in[$i] 
-#            else 
-##                . 
- #           end)
-#        end
-#    )]' merged_sorted.json >merged.json
+add_elevation_hoydedata()
+{
+    #group into array of arrays with 50 in each array
+    jq -n '[inputs | . as $arr | range(0; $arr | length; 50) | $arr[.:(. + 50)]]' merged-hrlatlon.json >merged-hrlatlon-grouped.json
 
-# guided by code from chatgpt
+    # add elevation to points, create curl url config pointlist for each group for ws.geonorge.no/hoydedata/v1/punkt
+    jq -r '.[] | "url = https://ws.geonorge.no/hoydedata/v1/punkt?koordsys=4258&punkter=\\["+ ( map("\\["+(.lon|tostring)+","+(.lat|tostring)+"\\]") |  join(","))+"\\]"' merged-hrlatlon-grouped.json >curl-hoydedata-pointlist-urls.txt
+    echo "Fetching elevation data from ws.geonorge.no/hoydedata/v1/punkt"
+    if curl --silent --config curl-hoydedata-pointlist-urls.txt >curl-hoydedata-response.json; then 
+        create_hoydedata_gpx
+    fi
+}
+
+merge_heartrate_gps()
+{
 
 # Merge and sort by timestamp
 jq --slurp 'sort_by(.timestamp)' heartrate.log gps.log > merged_sorted.json
@@ -195,19 +192,17 @@ jq --raw-output '
 "  </trk>\n" +
 "</gpx>\n"
 ' merged-hrlatlon.json >merged.gpx
+}
 
+echo "Processing log file: $log_file"
 
-#group into array of arrays with 50 in each array
-jq -n '[inputs | . as $arr | range(0; $arr | length; 50) | $arr[.:(. + 50)]]' merged-hrlatlon.json >merged-hrlatlon-grouped.json
+filter_heartrate >heartrate.log
+filter_gps >gps.log
 
-# add elevation to points, create curl url config pointlist for each group for ws.geonorge.no/hoydedata/v1/punkt
-jq -r '.[] | "url = https://ws.geonorge.no/hoydedata/v1/punkt?koordsys=4258&punkter=\\["+ ( map("\\["+(.lon|tostring)+","+(.lat|tostring)+"\\]") |  join(","))+"\\]"' merged-hrlatlon-grouped.json >curl-hoydedata-pointlist-urls.txt
-echo "Fetching elevation data from ws.geonorge.no/hoydedata/v1/punkt"
-if curl --silent --config curl-hoydedata-pointlist-urls.txt >curl-hoydedata-response.json; then 
-    create_hoydedata_gpx
-fi
+merge_heartrate_gps
+add_elevation_hoydedata
 
-rm merged-hrlatlon-grouped.json merged-hrlatlon.json merged_sorted.json merged.json merged-hrlatlon-ele.json heartrate.log gps.log grep-heartvalueplayload.log grep-gpsplayload.log curl-hoydedata-pointlist-urls.txt curl-hoydedata-response.json curl-hoydedata-response-points.json curl-hoydedata-pointlist-urls.txt
+rm merged-hrlatlon-grouped.json merged-hrlatlon.json merged_sorted.json merged.json merged-hrlatlon-ele.json heartrate.log gps.log grep-heartvalueplayload.log grep-gpsplayload.log curl-hoydedata-pointlist-urls.txt curl-hoydedata-response.json curl-hoydedata-response-points.json
 
 
 
