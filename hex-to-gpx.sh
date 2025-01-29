@@ -256,7 +256,7 @@ Options:
    --pull              pull watchband log files from mobile phone which contains the hex data for heartrate and gps
    --file [log_file]   specify log file to process
    --delete            delete intermediary files, used for debugging
-   --ele               get elevation data from ws.geonorge.no/hoydedata/v1/punkt and create merged-ele.gpx
+   --hoydedata         get elevation data from ws.geonorge.no/hoydedata/v1/punkt and create merged-ele.gpx
 EOF
             exit 0
             ;;
@@ -264,7 +264,7 @@ EOF
             # delete intermediary files
             DELETE_FILES=true
             ;;
-        --ele)
+        --hoydedata)
             ELEVATION_CORRECTION=true
             ;;
 
