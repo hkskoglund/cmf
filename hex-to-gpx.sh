@@ -232,8 +232,10 @@ pull_watchband()
 filter_hr_gps()
 {
     # show first 10 lines of filtered data to see time difference between heartrate and gps start time
-    echo "Head of filtering heartrate:" && filter_heartrate | tee heartrate.log | head
-    echo "Head of filtering gps:" && filter_gps | tee gps.log | head  
+    filter_heartrate >heartrate.log
+    echo "Head of filtering heartrate:" && head heartrate.log
+    filter_gps >gps.log
+    echo "Head of filtering gps:" && head gps.log 
    
 }
 
