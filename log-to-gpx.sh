@@ -112,7 +112,11 @@ filter_gps()
     # One line of all data (It does not contain last 8 bytes of each record/checksum?)
     # it is safer to read one line, than grepping multiple records/lines
     # also this is INFO debug level, which may not be turned off
-    grep ".*l-GpsData" "$log_file" | tee grep-gpsdata.log | cut -b48- | fold --width=$((24*16)) | read_hex_rec $RECVALUE_GPS $RECCMD_GPS 
+    gps_matches=$(grep --count ".*l-GpsData" "$log_file")
+    if [ "$gps_matches" -gt 1 ]; then
+        echo "Warning: Multiple gps sessions found, only using first one" >&2
+    fi
+    grep --max-count=1 ".*l-GpsData" "$log_file" | tee grep-gpsdata.log | cut -b48- | fold --width=$((24*16)) | read_hex_rec $RECVALUE_GPS $RECCMD_GPS 
     [ -n "$DELETE_FILES" ] && rm grep-gpsdata.log
 }
 create_hoydedata_gpx()
