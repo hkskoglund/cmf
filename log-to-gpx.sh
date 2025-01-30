@@ -33,16 +33,16 @@ read_hex_rec()
     recvalue="$1"
     reccmd="$2"
 
-    #echo "reccmd: $reccmd recvalue: $recvalue"
+    #echo "reccmd: $reccmd recvalue: $recvalue" >&2
 
     while read -r line; do
         #echo "read: $line" >&2
         #shellcheck disable=SC2046
         set --  $(echo "$line" | fold --width=2 | paste --serial --delimiter=' ')
-        while [ $# -gt 8 ]; do
+        while [ $# -ge 8 ]; do
 
             if [ "$reccmd" = "$RECCMD_OUTDOOR_HEARTRATE" ] && [ "$recvalue" = "$RECVALUE_OUTDOOR_HEARTRATE" ]; then
-                #echo read timestamp: "$1 $2 $3 $4"
+                #echo read timestamp: "$1 $2 $3 $4" >&2
                 timestamp=$(printf "%d" 0x"$4$3$2$1")
                 timestamp_date=$(print_utc_time "$timestamp")
                 shift 4
@@ -88,7 +88,7 @@ filter_log()
     [ -n "$DELETE_FILES" ] && rm grep-"$recpayload".log
 }
 
-filter_heartrate()
+filter_heartrate_rec()
 {
     filter_log $RECVALUE_OUTDOOR_HEARTRATE $RECCMD_OUTDOOR_HEARTRATE $RECPAYLOAD_HEARTRATE $RECBYTECUTPOS_HEARTRATE | read_hex_rec $RECVALUE_OUTDOOR_HEARTRATE $RECCMD_OUTDOOR_HEARTRATE
 }
@@ -96,6 +96,15 @@ filter_heartrate()
 filter_gps_rec()
 {
     filter_log $RECVALUE_GPS $RECCMD_GPS "$RECPAYLOAD_GPS" "$RECBYTECUTPOS_GPS" | read_hex_rec $RECVALUE_GPS $RECCMD_GPS
+}
+
+filter_heartrate()
+{
+    # try using one line on json data
+    # reconstruct ble data from json data
+    # why are json not converted to heartrate: and ordinary timestamp: before upload?
+    grep ".*WatchDataUpload-getExeciseDatas_start" "$log_file"| tee grep-heartrate.log | cut -b89- | jq -sr '.[][] | select(.abilityId=="00e0") | .startTime+.datas' |  read_hex_rec $RECVALUE_OUTDOOR_HEARTRATE $RECCMD_OUTDOOR_HEARTRATE
+    [ -n "$DELETE_FILES" ] && rm grep-heartrate.log
 }
 
 filter_gps()
@@ -148,7 +157,7 @@ create_hoydedata_gpx()
 
 get_elevation_hoydedata()
 {
-    #group into array of arrays with 50 in each array
+    #group into array of arrays with 50 in each array, due to api limit
     jq -n '[inputs | . as $arr | range(0; $arr | length; 50) | $arr[.:(. + 50)]]' merged-hrlatlon.json >merged-hrlatlon-grouped.json
 
     # add elevation to points, create curl url config pointlist for each group for ws.geonorge.no/hoydedata/v1/punkt
@@ -235,7 +244,8 @@ filter_hr_gps()
     filter_heartrate >heartrate.log
     echo "Head of filtering heartrate:" && head heartrate.log
     filter_gps >gps.log
-    echo "Head of filtering gps:" && head gps.log 
+    # watch probably starts gps logging before heartrate logging, also timestamps may differ between the two
+    echo "Head of filtering gps:" && head -n 20 gps.log 
    
 }
 
