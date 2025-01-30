@@ -103,7 +103,12 @@ filter_heartrate()
     # try using one line on json data
     # reconstruct ble data from json data
     # why are json not converted to heartrate: and ordinary timestamp: before upload?
-    grep ".*WatchDataUpload-getExeciseDatas_start" "$log_file"| tee grep-heartrate.log | cut -b89- | jq -sr '.[][] | select(.abilityId=="00e0") | .startTime+.datas' |  read_hex_rec $RECVALUE_OUTDOOR_HEARTRATE $RECCMD_OUTDOOR_HEARTRATE
+    # logfile typo in ExeciseDatas -> ExerciseDatas
+    heartrate_matches=$(grep --count ".*WatchDataUpload-getExeciseDatas_start.*00e0" "$log_file")
+    if [ "$heartrate_matches" -gt 1 ]; then
+        echo "Warning: Multiple heartrate sessions found, only using first one" >&2
+    fi
+    grep --max-count=1 ".*WatchDataUpload-getExeciseDatas_start.*00e0" "$log_file"| tee grep-heartrate.log | cut -b89- | jq -sr '.[][] | select(.abilityId=="00e0") | .startTime+.datas' |  read_hex_rec $RECVALUE_OUTDOOR_HEARTRATE $RECCMD_OUTDOOR_HEARTRATE
     [ -n "$DELETE_FILES" ] && rm grep-heartrate.log
 }
 
