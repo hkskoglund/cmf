@@ -106,10 +106,10 @@ filter_heartrate()
     # logfile typo in ExeciseDatas -> ExerciseDatas
    
     heartrate_line_counter=0
-    grep ".*WatchDataUpload-getExeciseDatas_start.*00e0" "$log_file" | while read -r heartrate_line; do
+    grep ".*WatchDataUpload-getExeciseDatas_start.*$RECVALUE_OUTDOOR_HEARTRATE" "$log_file" | while read -r heartrate_line; do
         heartrate_line_counter=$((heartrate_line_counter+1))
         #echo "heartrate_line_counter: $heartrate_line_counter" >&2
-        echo "$heartrate_line" | tee grep-heartrate-$heartrate_line_counter.log | cut -b89- | jq -sr '.[][] | select(.abilityId=="00e0") | .startTime+.datas' |  read_hex_rec $RECVALUE_OUTDOOR_HEARTRATE $RECCMD_OUTDOOR_HEARTRATE >heartrate-$heartrate_line_counter.log
+        echo "$heartrate_line" | tee grep-heartrate-$heartrate_line_counter.log | cut -b89- | jq -sr  '.[][] | select(.abilityId=="'$RECVALUE_OUTDOOR_HEARTRATE'") | .startTime+.datas' |  read_hex_rec $RECVALUE_OUTDOOR_HEARTRATE $RECCMD_OUTDOOR_HEARTRATE >heartrate-$heartrate_line_counter.log
          [ -n "$DELETE_FILES" ] && rm grep-heartrate-$heartrate_line_counter.log
     done 
 }
@@ -254,7 +254,7 @@ pull_watchband()
 filter_hr_gps()
 {
     # show first 10 lines of filtered data to see time difference between heartrate and gps start time
-    heartrate_matches=$(grep --count ".*WatchDataUpload-getExeciseDatas_start.*00e0" "$log_file")
+    heartrate_matches=$(grep --count ".*WatchDataUpload-getExeciseDatas_start.*$RECVALUE_OUTDOOR_HEARTRATE" "$log_file")
     if [ "$heartrate_matches" -gt 1 ]; then
         echo "Warning: Multiple heartrate sessions found, only using first one" >&2
     fi
