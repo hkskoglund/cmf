@@ -23,6 +23,11 @@ RECCMD_GPS="a05a"
 RECPAYLOAD_GPS="gpsplayload"
 RECBYTECUTPOS_GPS=54
 
+cleanup() {
+    [ -n "$DELETE_FILES" ] && rm -f "$@"
+}
+
+
 print_utc_time()
 # $1 timestamp
 {
@@ -44,27 +49,27 @@ read_hex_rec()
 
             if [ "$reccmd" = "$RECCMD_OUTDOOR_HEARTRATE" ] && [ "$recvalue" = "$RECVALUE_OUTDOOR_HEARTRATE" ]; then
                 #echo read timestamp: "$1 $2 $3 $4" >&2
-                timestamp=$(printf "%d" 0x"$4$3$2$1")
+                timestamp=$((0x"$4$3$2$1"))
                 timestamp_date=$(print_utc_time "$timestamp")
                 shift 4
                 #echo read heartrate: "$1 $2 $3 $4"
-                heartrate=$(printf "%d" 0x"$4$3$2$1")
+                heartrate=$((0x"$4$3$2$1"))
                 shift 4
                 #echo "$timestamp_date $heartrate" >&2
                 echo "{ \"timestamp\": $timestamp, \"timestamp_date\": \"$timestamp_date\", \"heartrate\" : $heartrate }" 
             elif [ "$reccmd" = "$RECCMD_GPS" ] && [ "$recvalue" = "$RECVALUE_GPS" ]; then
                 # gps track
                 #echo gps read timestamp: "$1 $2 $3 $4"
-                timestamp=$(printf "%d" 0x"$4$3$2$1")
+                timestamp=$((0x"$4$3$2$1"))
                 timestamp_date=$(print_utc_time "$timestamp")
                 shift 4
                 #echo "gps read lon: $1 $2 $3 $4"
-                lon=$(printf "%d" 0x"$4$3$2$1")
+                lon=$((0x"$4$3$2$1"))
                 lon_float=$(echo "scale=7; $lon / 10000000" | bc)
                 shift 4
                 #echo "gps read lat: $1 $2 $3 $4"
-                lat=$(printf "%d" 0x"$4$3$2$1")
-                lat_float=$(echo "scale=7; $lat / 10000000" | bc)
+                lat=$((0x"$4$3$2$1"))
+               lat_float=$(echo "scale=7; $lat / 10000000" | bc)
                 shift 4
                 #echo "$timestamp_date $lat $lon" >&2
                 echo "{ \"timestamp\": $timestamp, \"timestamp_date\": \"$timestamp_date\", \"lat\" : $lat_float, \"lon\" : $lon_float }" 
@@ -86,7 +91,7 @@ filter_log()
     rec_bytecutpos="$4"
 
     grep -A5 "h0-RecValue：$recvalue RecCmd:$reccmd" "$log_file" | tee grep-"$recpayload".log | grep -i "$recpayload" | cut --bytes="$rec_bytecutpos"-
-    [ -n "$DELETE_FILES" ] && rm grep-"$recpayload".log
+    cleanup grep-"$recpayload".log
 }
 
 filter_heartrate_rec()
@@ -108,7 +113,7 @@ filter_heartrate()
    
     
     grep '.*WatchDataUpload-getExeciseDatas_start.*"abilityId":"'$RECVALUE_OUTDOOR_HEARTRATE'"' "$log_file" |  tee grep-heartrate.log | cut -b89- | jq -sr  '.[][] | select(.abilityId=="'$RECVALUE_OUTDOOR_HEARTRATE'") | .startTime+.datas' |  read_hex_rec $RECVALUE_OUTDOOR_HEARTRATE $RECCMD_OUTDOOR_HEARTRATE >heartrate.log
-    [ -n "$DELETE_FILES" ] && rm grep-heartrate.log
+    cleanup grep-heartrate.log
 }
 
 filter_gps()
@@ -118,7 +123,7 @@ filter_gps()
     # also this is INFO debug level, which may not be turned off
   
     grep ".*l-GpsData" "$log_file" |  tee grep-gpsdata.log | cut -b48- | fold --width=$((24*16)) | read_hex_rec $RECVALUE_GPS $RECCMD_GPS >gps.log
-    [ -n "$DELETE_FILES" ] && rm grep-gpsdata.log
+    cleanup grep-gpsdata.log
 }
 create_hoydedata_gpx()
 {
@@ -157,7 +162,7 @@ create_hoydedata_gpx()
         echo "Failed to create track-ele-"$FILENAME_POSTFIX".gpx"
     fi
 
-  [ -n "$DELETE_FILES" ] && rm curl-hoydedata-response-"$FILENAME_POSTFIX".json curl-hoydedata-response-points-"$FILENAME_POSTFIX".json track-hrlatlon-"$FILENAME_POSTFIX".json track-hrlatlon-ele-"$FILENAME_POSTFIX".json
+  cleanup curl-hoydedata-response-"$FILENAME_POSTFIX".json curl-hoydedata-response-points-"$FILENAME_POSTFIX".json track-hrlatlon-"$FILENAME_POSTFIX".json track-hrlatlon-ele-"$FILENAME_POSTFIX".json
 }
 
 get_elevation_hoydedata()
@@ -167,7 +172,7 @@ get_elevation_hoydedata()
 
     # add elevation to points, create curl url config pointlist for each group for ws.geonorge.no/hoydedata/v1/punkt
     jq -r '.[] | "url = https://ws.geonorge.no/hoydedata/v1/punkt?koordsys=4258&punkter=\\["+ ( map("\\["+(.lon|tostring)+","+(.lat|tostring)+"\\]") |  join(","))+"\\]"' track-hrlatlon-grouped-"$FILENAME_POSTFIX".json >curl-hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt
-    [ -n "$DELETE_FILES" ] && rm track-hrlatlon-grouped-"$FILENAME_POSTFIX".json
+    cleanup track-hrlatlon-grouped-"$FILENAME_POSTFIX".json
     echo "Fetching elevation data from ws.geonorge.no/hoydedata/v1/punkt"
     curl --silent --config curl-hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt >curl-hoydedata-response-"$FILENAME_POSTFIX".json
 }    
@@ -191,7 +196,7 @@ merge_hr_gps()
     # Remove objecs without heartrate,lat and lon
 
     jq '[.[] | select(has("heartrate") and has("lon") and has("lat"))]' track-"$FILENAME_POSTFIX".json > track-hrlatlon-"$FILENAME_POSTFIX".json
-    [ -n "$DELETE_FILES" ] && rm heartrate-"$FILENAME_POSTFIX".log gps-"$FILENAME_POSTFIX".log merged_sorted-"$FILENAME_POSTFIX".json track-"$FILENAME_POSTFIX".json
+    cleanup heartrate-"$FILENAME_POSTFIX".log gps-"$FILENAME_POSTFIX".log merged_sorted-"$FILENAME_POSTFIX".json track-"$FILENAME_POSTFIX".json
 }
 
 create_gpx()
@@ -230,6 +235,7 @@ pull_watchband()
 {
     #  Check if adb is installed
     if ! command -v adb 1>/dev/null 2>/dev/null; then
+        echo "adb could not be found. Please ensure adb is installed and added to your PATH."
         echo "adb could not be found, please install it first."
         exit 1
     fi
@@ -273,7 +279,7 @@ split_heartrate_gps()
     done <sportmode-times.log
     IFS="$OIFS"
     SPORTMODE_LINE_COUNTER_MAX=$SPORTMODE_LINE_COUNTER
-    [ -n "$DELETE_FILES" ] && rm sportmode-times.log
+    cleanup sportmode-times.log
 }
 
 #dont mess up git source directory with data
@@ -342,7 +348,7 @@ echo "Processing log file: $log_file cwd: $(pwd)"
 #                               DEBUG t-sportModeValue gpsAbsolutePath:/storage/emulated/0/Android/data/com.nothing.cmf.watch/files/GPS/1738241253_1738242550.txt
 
 # deepseek: paste Using - - means paste will read from standard input twice, effectively combining every two lines into one
-if ! grep -2 't-sportModeValue timeResult.*support gps:01$' "$log_file" | grep -E "sportType|sportTimes" | paste -d " " - - >sportmode-times.log; then 
+if ! grep --context=2 't-sportModeValue timeResult.*support gps:01$' "$log_file" | grep -E "sportType|sportTimes" | paste --delimiters=" " - - >sportmode-times.log; then 
     echo "No GPS activities found in log file" >&2
     exit 1
 else
@@ -368,9 +374,9 @@ while [ $SPORTMODE_LINE_COUNTER -lt "$SPORTMODE_LINE_COUNTER_MAX" ]; do
     if get_elevation_hoydedata; then 
         create_hoydedata_gpx
     fi
-    [ -n "$DELETE_FILES" ] && rm curl-hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt  curl-hoydedata-response-"$FILENAME_POSTFIX".json curl-hoydedata-response-points-"$FILENAME_POSTFIX".json
+    cleanup curl-hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt  curl-hoydedata-response-"$FILENAME_POSTFIX".json curl-hoydedata-response-points-"$FILENAME_POSTFIX".json
     fi
 
-    [ -n "$DELETE_FILES" ] && rm track-hrlatlon-"$FILENAME_POSTFIX".json
+    cleanup track-hrlatlon-"$FILENAME_POSTFIX".json
 done
 
