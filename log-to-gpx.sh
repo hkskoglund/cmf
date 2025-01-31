@@ -105,13 +105,9 @@ filter_heartrate()
     # why are json not converted to heartrate: and ordinary timestamp: before upload?
     # logfile typo in ExeciseDatas -> ExerciseDatas
    
-    heartrate_line_counter=0
-    grep ".*WatchDataUpload-getExeciseDatas_start.*$RECVALUE_OUTDOOR_HEARTRATE" "$log_file" | while read -r heartrate_line; do
-        heartrate_line_counter=$((heartrate_line_counter+1))
-        #echo "heartrate_line_counter: $heartrate_line_counter" >&2
-        echo "$heartrate_line" | tee grep-heartrate-$heartrate_line_counter.log | cut -b89- | jq -sr  '.[][] | select(.abilityId=="'$RECVALUE_OUTDOOR_HEARTRATE'") | .startTime+.datas' |  read_hex_rec $RECVALUE_OUTDOOR_HEARTRATE $RECCMD_OUTDOOR_HEARTRATE >heartrate-$heartrate_line_counter.log
-         [ -n "$DELETE_FILES" ] && rm grep-heartrate-$heartrate_line_counter.log
-    done 
+    
+    grep '.*WatchDataUpload-getExeciseDatas_start.*"abilityId":"'$RECVALUE_OUTDOOR_HEARTRATE'"' "$log_file" |  tee grep-heartrate.log | cut -b89- | jq -sr  '.[][] | select(.abilityId=="'$RECVALUE_OUTDOOR_HEARTRATE'") | .startTime+.datas' |  read_hex_rec $RECVALUE_OUTDOOR_HEARTRATE $RECCMD_OUTDOOR_HEARTRATE >heartrate.log
+    [ -n "$DELETE_FILES" ] && rm grep-heartrate.log
 }
 
 filter_gps()
@@ -120,21 +116,16 @@ filter_gps()
     # it is safer to read one line, than grepping multiple records/lines
     # also this is INFO debug level, which may not be turned off
   
-    gps_line_counter=0
-    grep ".*l-GpsData" "$log_file" | while read -r gps_line; do 
-        gps_line_counter=$((gps_line_counter+1))
-        #echo "gps_line_counter: $gps_line_counter" >&2
-        echo "$gps_line" | tee grep-gpsdata-$gps_line_counter.log | cut -b48- | fold --width=$((24*16)) | read_hex_rec $RECVALUE_GPS $RECCMD_GPS >gps-$gps_line_counter.log
-        [ -n "$DELETE_FILES" ] && rm grep-gpsdata-$gps_line_counter.log
-    done
+    grep ".*l-GpsData" "$log_file" |  tee grep-gpsdata.log | cut -b48- | fold --width=$((24*16)) | read_hex_rec $RECVALUE_GPS $RECCMD_GPS >gps.log
+    [ -n "$DELETE_FILES" ] && rm grep-gpsdata.log
 }
 create_hoydedata_gpx()
 {
 
-    jq -s '[ .[].punkter.[] ]' curl-hoydedata-response-$SESSION_COUNTER.json >curl-hoydedata-response-points-$SESSION_COUNTER.json
+    jq -s '[ .[].punkter.[] ]' curl-hoydedata-response-$SPORTMODE_LINE_COUNTER.json >curl-hoydedata-response-points-$SPORTMODE_LINE_COUNTER.json
 
     # with help from chatgpt ai
-    jq -s 'transpose | map(add | del(.x, .y, .datakilde, .terreng) | .ele = .z | del(.z))'  merged-hrlatlon-$SESSION_COUNTER.json curl-hoydedata-response-points-$SESSION_COUNTER.json >merged-hrlatlon-ele-$SESSION_COUNTER.json
+    jq -s 'transpose | map(add | del(.x, .y, .datakilde, .terreng) | .ele = .z | del(.z))'  merged-hrlatlon-$SPORTMODE_LINE_COUNTER.json curl-hoydedata-response-points-$SPORTMODE_LINE_COUNTER.json >merged-hrlatlon-ele-$SPORTMODE_LINE_COUNTER.json
 
     if jq --raw-output '
 "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
@@ -159,32 +150,32 @@ create_hoydedata_gpx()
 "    </trkseg>\n" +
 "  </trk>\n" +
 "</gpx>\n"
-' merged-hrlatlon-ele-$SESSION_COUNTER.json >merged-ele-$SESSION_COUNTER.gpx; then 
-    echo "Created merged-ele-$SESSION_COUNTER.gpx"
+' merged-hrlatlon-ele-$SPORTMODE_LINE_COUNTER.json >merged-ele-$SPORTMODE_LINE_COUNTER.gpx; then 
+    echo "Created merged-ele-$SPORTMODE_LINE_COUNTER.gpx"
     else
-        echo "Failed to create merged-ele-$SESSION_COUNTER.gpx"
+        echo "Failed to create merged-ele-$SPORTMODE_LINE_COUNTER.gpx"
     fi
 
-  [ -n "$DELETE_FILES" ] && rm curl-hoydedata-response-$SESSION_COUNTER.json curl-hoydedata-response-points-$SESSION_COUNTER.json merged-hrlatlon-$SESSION_COUNTER.json merged-hrlatlon-ele-$SESSION_COUNTER.json
+  [ -n "$DELETE_FILES" ] && rm curl-hoydedata-response-$SPORTMODE_LINE_COUNTER.json curl-hoydedata-response-points-$SPORTMODE_LINE_COUNTER.json merged-hrlatlon-$SPORTMODE_LINE_COUNTER.json merged-hrlatlon-ele-$SPORTMODE_LINE_COUNTER.json
 }
 
 get_elevation_hoydedata()
 {
     #group into array of arrays with 50 in each array, due to api limit
-    jq -n '[inputs | . as $arr | range(0; $arr | length; 50) | $arr[.:(. + 50)]]' merged-hrlatlon-$SESSION_COUNTER.json >merged-hrlatlon-grouped-$SESSION_COUNTER.json
+    jq -n '[inputs | . as $arr | range(0; $arr | length; 50) | $arr[.:(. + 50)]]' merged-hrlatlon-$SPORTMODE_LINE_COUNTER.json >merged-hrlatlon-grouped-$SPORTMODE_LINE_COUNTER.json
 
     # add elevation to points, create curl url config pointlist for each group for ws.geonorge.no/hoydedata/v1/punkt
-    jq -r '.[] | "url = https://ws.geonorge.no/hoydedata/v1/punkt?koordsys=4258&punkter=\\["+ ( map("\\["+(.lon|tostring)+","+(.lat|tostring)+"\\]") |  join(","))+"\\]"' merged-hrlatlon-grouped-$SESSION_COUNTER.json >curl-hoydedata-pointlist-urls-$SESSION_COUNTER.txt
-    [ -n "$DELETE_FILES" ] && rm merged-hrlatlon-grouped-$SESSION_COUNTER.json
+    jq -r '.[] | "url = https://ws.geonorge.no/hoydedata/v1/punkt?koordsys=4258&punkter=\\["+ ( map("\\["+(.lon|tostring)+","+(.lat|tostring)+"\\]") |  join(","))+"\\]"' merged-hrlatlon-grouped-$SPORTMODE_LINE_COUNTER.json >curl-hoydedata-pointlist-urls-$SPORTMODE_LINE_COUNTER.txt
+    [ -n "$DELETE_FILES" ] && rm merged-hrlatlon-grouped-$SPORTMODE_LINE_COUNTER.json
     echo "Fetching elevation data from ws.geonorge.no/hoydedata/v1/punkt"
-    curl --silent --config curl-hoydedata-pointlist-urls-$SESSION_COUNTER.txt >curl-hoydedata-response-$SESSION_COUNTER.json
+    curl --silent --config curl-hoydedata-pointlist-urls-$SPORTMODE_LINE_COUNTER.txt >curl-hoydedata-response-$SPORTMODE_LINE_COUNTER.json
 }    
 
 merge_hr_gps()
 {
 
     # Merge and sort by timestamp
-    jq --slurp 'sort_by(.timestamp)' heartrate-$SESSION_COUNTER.log gps-$SESSION_COUNTER.log > merged_sorted-$SESSION_COUNTER.json
+    jq --slurp 'sort_by(.timestamp)' heartrate-$SPORTMODE_LINE_COUNTER.log gps-$SPORTMODE_LINE_COUNTER.log > merged_sorted-$SPORTMODE_LINE_COUNTER.json
 
     # Deduplicate or merge entries with close timestamps
     jq '[reduce .[] as $entry (
@@ -194,12 +185,12 @@ merge_hr_gps()
         else
             map(if (.timestamp - $entry.timestamp | abs) <= 2 then . * $entry else . end)
         end
-    )] | .[]' merged_sorted-$SESSION_COUNTER.json > merged-$SESSION_COUNTER.json
+    )] | .[]' merged_sorted-$SPORTMODE_LINE_COUNTER.json > merged-$SPORTMODE_LINE_COUNTER.json
 
     # Remove objecs without heartrate,lat and lon
 
-    jq '[.[] | select(has("heartrate") and has("lon") and has("lat"))]' merged-$SESSION_COUNTER.json > merged-hrlatlon-$SESSION_COUNTER.json
-    [ -n "$DELETE_FILES" ] && rm heartrate-$SESSION_COUNTER.log gps-$SESSION_COUNTER.log merged_sorted-$SESSION_COUNTER.json merged-$SESSION_COUNTER.json
+    jq '[.[] | select(has("heartrate") and has("lon") and has("lat"))]' merged-$SPORTMODE_LINE_COUNTER.json > merged-hrlatlon-$SPORTMODE_LINE_COUNTER.json
+    [ -n "$DELETE_FILES" ] && rm heartrate-$SPORTMODE_LINE_COUNTER.log gps-$SPORTMODE_LINE_COUNTER.log merged_sorted-$SPORTMODE_LINE_COUNTER.json merged-$SPORTMODE_LINE_COUNTER.json
 }
 
 create_gpx()
@@ -226,10 +217,10 @@ create_gpx()
     "    </trkseg>\n" +
     "  </trk>\n" +
     "</gpx>\n"
-    ' merged-hrlatlon-$SESSION_COUNTER.json >merged-$SESSION_COUNTER.gpx; then 
-         echo "Created merged-$SESSION_COUNTER.gpx"
+    ' merged-hrlatlon-$SPORTMODE_LINE_COUNTER.json >merged-$SPORTMODE_LINE_COUNTER.gpx; then 
+         echo "Created merged-$SPORTMODE_LINE_COUNTER.gpx"
     else
-        echo "Failed to create merged-$SESSION_COUNTER.gpx"
+        echo "Failed to create merged-$SPORTMODE_LINE_COUNTER.gpx"
         return 1
     fi
 }
@@ -251,27 +242,24 @@ pull_watchband()
     fi
 }
 
-filter_hr_gps()
+split_heartrate_gps()
 {
-    # show first 10 lines of filtered data to see time difference between heartrate and gps start time
-    heartrate_matches=$(grep --count ".*WatchDataUpload-getExeciseDatas_start.*$RECVALUE_OUTDOOR_HEARTRATE" "$log_file")
-    if [ "$heartrate_matches" -gt 1 ]; then
-        echo "Warning: Multiple heartrate sessions found, only using first one" >&2
-    fi
-    filter_heartrate
-
-
-    gps_matches=$(grep --count ".*l-GpsData" "$log_file")
-    if [ "$heartrate_matches" -ne "$gps_matches" ]; then
-        echo "Warning: Number of heartrate and gps sessions do not match" >&2
-        exit 1
-    fi
-   
-    filter_gps
-
-    # watch probably starts gps logging before heartrate logging, also timestamps may differ between the two
-    #echo "Head of filtering heartrate:" && head heartrate.log
-    #echo "Head of filtering gps:" && head -n 20 gps.log 
+    OIFS="$IFS"
+    IFS="$IFS:"
+    #2025-01-30 14:10:15.980 [main] DEBUG t-sportModeValue timeResult:1738239834 sportTimes:1738241193
+    SPORTMODE_LINE_COUNTER=0
+    while read -r sportmode_line; do 
+        SPORTMODE_LINE_COUNTER=$((SPORTMODE_LINE_COUNTER+1))
+        # shellcheck disable=SC2086
+        set -- $sportmode_line
+        start_time=$9
+        stop_time=${11}
+        #echo "start_time: $start_time stop_time: $stop_time" >&2
+        jq 'select(.timestamp >='"$start_time"' and .timestamp <='"$stop_time"')' heartrate.log >heartrate-$SPORTMODE_LINE_COUNTER.log
+        jq 'select(.timestamp >='"$start_time"' and .timestamp <='"$stop_time"')' gps.log >gps-$SPORTMODE_LINE_COUNTER.log
+    done <sportmode-times.log
+    IFS="$OIFS"
+    SPORTMODE_LINE_COUNTER_MAX=$SPORTMODE_LINE_COUNTER
 }
 
 #dont mess up git source directory with data
@@ -331,16 +319,30 @@ fi
 
 echo "Processing log file: $log_file cwd: $(pwd)"
 
+# find start and end times of gps activity
+# it seems that even for multiple acitivities all gps data is in one file, this is also the case for heartrate data
+# it could be possible to do automatic session splitting based on time difference between gps timestamps, since normally
+# that watch stores a gps position each 5 seconds
+#2025-01-30 14:10:16.036 [main] DEBUG t-sportModeValue timeResult:1738241253 support gps:01
+#2025-01-30 14:10:16.037 [main] DEBUG t-sportModeValue timeResult:1738241253 sportTimes:1738242550
+#                               DEBUG t-sportModeValue gpsAbsolutePath:/storage/emulated/0/Android/data/com.nothing.cmf.watch/files/GPS/1738241253_1738242550.txt
+
+if ! grep -A1 't-sportModeValue timeResult.*support gps:01$' "$log_file" | grep sportTimes >sportmode-times.log; then 
+    echo "No GPS activities found in log file" >&2
+    exit 1
+fi
+
 # first filter hex data from log file
-filter_hr_gps
 
-# then merge and sort by timestamp
-SESSION_COUNTER=0
-while [ $SESSION_COUNTER -lt "$gps_matches" ]; do
-    SESSION_COUNTER=$((SESSION_COUNTER+1))
+filter_heartrate
+filter_gps
+split_heartrate_gps
+
+SPORTMODE_LINE_COUNTER=0
+while [ $SPORTMODE_LINE_COUNTER -lt "$SPORTMODE_LINE_COUNTER_MAX" ]; do
+    SPORTMODE_LINE_COUNTER=$((SPORTMODE_LINE_COUNTER+1))
+
     merge_hr_gps
-
-    # finally create gpx file
     create_gpx
 
     if [ -n "$ELEVATION_CORRECTION" ]; then
@@ -348,9 +350,9 @@ while [ $SESSION_COUNTER -lt "$gps_matches" ]; do
     if get_elevation_hoydedata; then 
         create_hoydedata_gpx
     fi
-    [ -n "$DELETE_FILES" ] && rm curl-hoydedata-pointlist-urls-$SESSION_COUNTER.txt  curl-hoydedata-response-$SESSION_COUNTER.json curl-hoydedata-response-points-$SESSION_COUNTER.json
+    [ -n "$DELETE_FILES" ] && rm curl-hoydedata-pointlist-urls-$SPORTMODE_LINE_COUNTER.txt  curl-hoydedata-response-$SPORTMODE_LINE_COUNTER.json curl-hoydedata-response-points-$SPORTMODE_LINE_COUNTER.json
     fi
 
-    [ -n "$DELETE_FILES" ] && rm merged-hrlatlon-$SESSION_COUNTER.json
+    [ -n "$DELETE_FILES" ] && rm merged-hrlatlon-$SPORTMODE_LINE_COUNTER.json
 done
 
