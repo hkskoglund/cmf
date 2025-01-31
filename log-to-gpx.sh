@@ -123,10 +123,10 @@ filter_gps()
 create_hoydedata_gpx()
 {
 
-    jq -s '[ .[].punkter.[] ]' curl-hoydedata-response-$SPORTMODE_LINE_COUNTER.json >curl-hoydedata-response-points-$SPORTMODE_LINE_COUNTER.json
+    jq -s '[ .[].punkter.[] ]' curl-hoydedata-response-"$FILENAME_POSTFIX".json >curl-hoydedata-response-points-"$FILENAME_POSTFIX".json
 
     # with help from chatgpt ai
-    jq -s 'transpose | map(add | del(.x, .y, .datakilde, .terreng) | .ele = .z | del(.z))'  merged-hrlatlon-$SPORTMODE_LINE_COUNTER.json curl-hoydedata-response-points-$SPORTMODE_LINE_COUNTER.json >merged-hrlatlon-ele-$SPORTMODE_LINE_COUNTER.json
+    jq -s 'transpose | map(add | del(.x, .y, .datakilde, .terreng) | .ele = .z | del(.z))'  merged-hrlatlon-"$FILENAME_POSTFIX".json curl-hoydedata-response-points-"$FILENAME_POSTFIX".json >merged-hrlatlon-ele-"$FILENAME_POSTFIX".json
 
     if jq --raw-output '
 "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
@@ -151,32 +151,32 @@ create_hoydedata_gpx()
 "    </trkseg>\n" +
 "  </trk>\n" +
 "</gpx>\n"
-' merged-hrlatlon-ele-$SPORTMODE_LINE_COUNTER.json >merged-ele-$SPORTMODE_LINE_COUNTER.gpx; then 
-    echo "Created merged-ele-$SPORTMODE_LINE_COUNTER.gpx"
+' merged-hrlatlon-ele-"$FILENAME_POSTFIX".json >merged-ele-"$FILENAME_POSTFIX".gpx; then 
+    echo "Created merged-ele-"$FILENAME_POSTFIX".gpx"
     else
-        echo "Failed to create merged-ele-$SPORTMODE_LINE_COUNTER.gpx"
+        echo "Failed to create merged-ele-"$FILENAME_POSTFIX".gpx"
     fi
 
-  [ -n "$DELETE_FILES" ] && rm curl-hoydedata-response-$SPORTMODE_LINE_COUNTER.json curl-hoydedata-response-points-$SPORTMODE_LINE_COUNTER.json merged-hrlatlon-$SPORTMODE_LINE_COUNTER.json merged-hrlatlon-ele-$SPORTMODE_LINE_COUNTER.json
+  [ -n "$DELETE_FILES" ] && rm curl-hoydedata-response-"$FILENAME_POSTFIX".json curl-hoydedata-response-points-"$FILENAME_POSTFIX".json merged-hrlatlon-"$FILENAME_POSTFIX".json merged-hrlatlon-ele-"$FILENAME_POSTFIX".json
 }
 
 get_elevation_hoydedata()
 {
     #group into array of arrays with 50 in each array, due to api limit
-    jq -n '[inputs | . as $arr | range(0; $arr | length; 50) | $arr[.:(. + 50)]]' merged-hrlatlon-$SPORTMODE_LINE_COUNTER.json >merged-hrlatlon-grouped-$SPORTMODE_LINE_COUNTER.json
+    jq -n '[inputs | . as $arr | range(0; $arr | length; 50) | $arr[.:(. + 50)]]' merged-hrlatlon-"$FILENAME_POSTFIX".json >merged-hrlatlon-grouped-"$FILENAME_POSTFIX".json
 
     # add elevation to points, create curl url config pointlist for each group for ws.geonorge.no/hoydedata/v1/punkt
-    jq -r '.[] | "url = https://ws.geonorge.no/hoydedata/v1/punkt?koordsys=4258&punkter=\\["+ ( map("\\["+(.lon|tostring)+","+(.lat|tostring)+"\\]") |  join(","))+"\\]"' merged-hrlatlon-grouped-$SPORTMODE_LINE_COUNTER.json >curl-hoydedata-pointlist-urls-$SPORTMODE_LINE_COUNTER.txt
-    [ -n "$DELETE_FILES" ] && rm merged-hrlatlon-grouped-$SPORTMODE_LINE_COUNTER.json
+    jq -r '.[] | "url = https://ws.geonorge.no/hoydedata/v1/punkt?koordsys=4258&punkter=\\["+ ( map("\\["+(.lon|tostring)+","+(.lat|tostring)+"\\]") |  join(","))+"\\]"' merged-hrlatlon-grouped-"$FILENAME_POSTFIX".json >curl-hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt
+    [ -n "$DELETE_FILES" ] && rm merged-hrlatlon-grouped-"$FILENAME_POSTFIX".json
     echo "Fetching elevation data from ws.geonorge.no/hoydedata/v1/punkt"
-    curl --silent --config curl-hoydedata-pointlist-urls-$SPORTMODE_LINE_COUNTER.txt >curl-hoydedata-response-$SPORTMODE_LINE_COUNTER.json
+    curl --silent --config curl-hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt >curl-hoydedata-response-"$FILENAME_POSTFIX".json
 }    
 
 merge_hr_gps()
 {
 
     # Merge and sort by timestamp
-    jq --slurp 'sort_by(.timestamp)' heartrate-$SPORTMODE_LINE_COUNTER.log gps-$SPORTMODE_LINE_COUNTER.log > merged_sorted-$SPORTMODE_LINE_COUNTER.json
+    jq --slurp 'sort_by(.timestamp)' heartrate-"$FILENAME_POSTFIX".log gps-"$FILENAME_POSTFIX".log > merged_sorted-"$FILENAME_POSTFIX".json
 
     # Deduplicate or merge entries with close timestamps
     jq '[reduce .[] as $entry (
@@ -186,12 +186,12 @@ merge_hr_gps()
         else
             map(if (.timestamp - $entry.timestamp | abs) <= 2 then . * $entry else . end)
         end
-    )] | .[]' merged_sorted-$SPORTMODE_LINE_COUNTER.json > merged-$SPORTMODE_LINE_COUNTER.json
+    )] | .[]' merged_sorted-"$FILENAME_POSTFIX".json > merged-"$FILENAME_POSTFIX".json
 
     # Remove objecs without heartrate,lat and lon
 
-    jq '[.[] | select(has("heartrate") and has("lon") and has("lat"))]' merged-$SPORTMODE_LINE_COUNTER.json > merged-hrlatlon-$SPORTMODE_LINE_COUNTER.json
-    [ -n "$DELETE_FILES" ] && rm heartrate-$SPORTMODE_LINE_COUNTER.log gps-$SPORTMODE_LINE_COUNTER.log merged_sorted-$SPORTMODE_LINE_COUNTER.json merged-$SPORTMODE_LINE_COUNTER.json
+    jq '[.[] | select(has("heartrate") and has("lon") and has("lat"))]' merged-"$FILENAME_POSTFIX".json > merged-hrlatlon-"$FILENAME_POSTFIX".json
+    [ -n "$DELETE_FILES" ] && rm heartrate-"$FILENAME_POSTFIX".log gps-"$FILENAME_POSTFIX".log merged_sorted-"$FILENAME_POSTFIX".json merged-"$FILENAME_POSTFIX".json
 }
 
 create_gpx()
@@ -218,10 +218,10 @@ create_gpx()
     "    </trkseg>\n" +
     "  </trk>\n" +
     "</gpx>\n"
-    ' merged-hrlatlon-$SPORTMODE_LINE_COUNTER.json >merged-$SPORTMODE_LINE_COUNTER.gpx; then 
-         echo "Created merged-$SPORTMODE_LINE_COUNTER.gpx"
+    ' merged-hrlatlon-"$FILENAME_POSTFIX".json >merged-"$FILENAME_POSTFIX".gpx; then 
+         echo "Created merged-"$FILENAME_POSTFIX".gpx"
     else
-        echo "Failed to create merged-$SPORTMODE_LINE_COUNTER.gpx"
+        echo "Failed to create merged-"$FILENAME_POSTFIX".gpx"
         return 1
     fi
 }
@@ -243,6 +243,12 @@ pull_watchband()
     fi
 }
 
+get_filename_postfix()
+{
+    # $1 counter
+    date --utc -d @"$(eval echo \$SPORTMODE_START_TIME_$1)" +%Y%m%d_%H%M%S
+}
+
 split_heartrate_gps()
 {
     OIFS="$IFS"
@@ -257,12 +263,17 @@ split_heartrate_gps()
         sport_type=$8
         start_time=${17}
         stop_time=${19}
+        eval SPORTMODE_SPORT_TYPE_$SPORTMODE_LINE_COUNTER="$sport_type"
+        eval SPORTMODE_START_TIME_$SPORTMODE_LINE_COUNTER="$start_time"
+        eval SPORTMODE_STOP_TIME_$SPORTMODE_LINE_COUNTER="$stop_time"
         echo "sport_type: $sport_type $start_time: $start_time $(print_utc_time "$start_time") stop_time: $stop_time $(print_utc_time "$stop_time")" >&2
-        jq 'select(.timestamp >='"$start_time"' and .timestamp <='"$stop_time"')' heartrate.log >heartrate-$SPORTMODE_LINE_COUNTER.log
-        jq 'select(.timestamp >='"$start_time"' and .timestamp <='"$stop_time"')' gps.log >gps-$SPORTMODE_LINE_COUNTER.log
+        FILENAME_POSTFIX=$(get_filename_postfix "$SPORTMODE_LINE_COUNTER")
+        jq 'select(.timestamp >='"$start_time"' and .timestamp <='"$stop_time"')' heartrate.log >heartrate-"$FILENAME_POSTFIX".log
+        jq 'select(.timestamp >='"$start_time"' and .timestamp <='"$stop_time"')' gps.log >gps-"$FILENAME_POSTFIX".log
     done <sportmode-times.log
     IFS="$OIFS"
     SPORTMODE_LINE_COUNTER_MAX=$SPORTMODE_LINE_COUNTER
+    [ -n "$DELETE_FILES" ] && rm sportmode-times.log
 }
 
 #dont mess up git source directory with data
@@ -347,6 +358,7 @@ split_heartrate_gps
 SPORTMODE_LINE_COUNTER=0
 while [ $SPORTMODE_LINE_COUNTER -lt "$SPORTMODE_LINE_COUNTER_MAX" ]; do
     SPORTMODE_LINE_COUNTER=$((SPORTMODE_LINE_COUNTER+1))
+    FILENAME_POSTFIX=$(get_filename_postfix "$SPORTMODE_LINE_COUNTER")
 
     merge_hr_gps
     create_gpx
@@ -356,9 +368,9 @@ while [ $SPORTMODE_LINE_COUNTER -lt "$SPORTMODE_LINE_COUNTER_MAX" ]; do
     if get_elevation_hoydedata; then 
         create_hoydedata_gpx
     fi
-    [ -n "$DELETE_FILES" ] && rm curl-hoydedata-pointlist-urls-$SPORTMODE_LINE_COUNTER.txt  curl-hoydedata-response-$SPORTMODE_LINE_COUNTER.json curl-hoydedata-response-points-$SPORTMODE_LINE_COUNTER.json
+    [ -n "$DELETE_FILES" ] && rm curl-hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt  curl-hoydedata-response-"$FILENAME_POSTFIX".json curl-hoydedata-response-points-"$FILENAME_POSTFIX".json
     fi
 
-    [ -n "$DELETE_FILES" ] && rm merged-hrlatlon-$SPORTMODE_LINE_COUNTER.json
+    [ -n "$DELETE_FILES" ] && rm merged-hrlatlon-"$FILENAME_POSTFIX".json
 done
 
