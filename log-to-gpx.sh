@@ -246,16 +246,18 @@ pull_watchband()
 split_heartrate_gps()
 {
     OIFS="$IFS"
-    IFS="$IFS:"
-    #2025-01-30 14:10:15.980 [main] DEBUG t-sportModeValue timeResult:1738239834 sportTimes:1738241193
+    IFS="$IFS:>"
+    #two log lines combined by | paste -d" " - -
+    #2025-01-30 14:10:15.980 [main] DEBUG t-sportType==>2 2025-01-30 14:10:15.980 [main] DEBUG t-sportModeValue timeResult:1738239834 sportTimes:1738241193
     SPORTMODE_LINE_COUNTER=0
     while read -r sportmode_line; do 
         SPORTMODE_LINE_COUNTER=$((SPORTMODE_LINE_COUNTER+1))
         # shellcheck disable=SC2086
         set -- $sportmode_line
-        start_time=$9
-        stop_time=${11}
-        #echo "start_time: $start_time stop_time: $stop_time" >&2
+        sport_type=$8
+        start_time=${17}
+        stop_time=${19}
+        echo "sport_type: $sport_type $start_time: $start_time $(print_utc_time "$start_time") stop_time: $stop_time $(print_utc_time "$stop_time")" >&2
         jq 'select(.timestamp >='"$start_time"' and .timestamp <='"$stop_time"')' heartrate.log >heartrate-$SPORTMODE_LINE_COUNTER.log
         jq 'select(.timestamp >='"$start_time"' and .timestamp <='"$stop_time"')' gps.log >gps-$SPORTMODE_LINE_COUNTER.log
     done <sportmode-times.log
@@ -328,7 +330,8 @@ echo "Processing log file: $log_file cwd: $(pwd)"
 #2025-01-30 14:10:16.037 [main] DEBUG t-sportModeValue timeResult:1738241253 sportTimes:1738242550
 #                               DEBUG t-sportModeValue gpsAbsolutePath:/storage/emulated/0/Android/data/com.nothing.cmf.watch/files/GPS/1738241253_1738242550.txt
 
-if ! grep -A1 't-sportModeValue timeResult.*support gps:01$' "$log_file" | grep sportTimes >sportmode-times.log; then 
+# deepseek: paste Using - - means paste will read from standard input twice, effectively combining every two lines into one
+if ! grep -2 't-sportModeValue timeResult.*support gps:01$' "$log_file" | grep -E "sportType|sportTimes" | paste -d " " - - >sportmode-times.log; then 
     echo "No GPS activities found in log file" >&2
     exit 1
 else
