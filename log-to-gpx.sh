@@ -1,4 +1,5 @@
 #!/bin/sh
+GPX_CREATOR=$(basename "$0")
 
 # log file in ./files/watchband directory on device
 # requires: data must be downloaded from the watchband by the app
@@ -129,7 +130,7 @@ create_hoydedata_gpx()
 
     if jq --raw-output '
 "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
-"<gpx version=\"1.1\" creator=\"jq\" xmlns=\"http://www.topografix.com/GPX/1/1\" xmlns:gpxtpx=\"http://www.garmin.com/xmlschemas/TrackPointExtension/v1\">\n" +
+"<gpx version=\"1.1\" creator=\"'"$GPX_CREATOR"'\" xmlns=\"http://www.topografix.com/GPX/1/1\" xmlns:gpxtpx=\"http://www.garmin.com/xmlschemas/TrackPointExtension/v1\">\n" +
 "  <trk>\n" +
 "    <trkseg>\n" +
 (. | map(
@@ -197,7 +198,7 @@ create_gpx()
 {
     if jq --raw-output '
     "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
-    "<gpx version=\"1.1\" creator=\"jq\" xmlns=\"http://www.topografix.com/GPX/1/1\" xmlns:gpxtpx=\"http://www.garmin.com/xmlschemas/TrackPointExtension/v1\">\n" +
+    "<gpx version=\"1.1\" creator=\"'"$GPX_CREATOR"'\" xmlns=\"http://www.topografix.com/GPX/1/1\" xmlns:gpxtpx=\"http://www.garmin.com/xmlschemas/TrackPointExtension/v1\">\n" +
     "  <trk>\n" +
     "    <trkseg>\n" +
     (. | map(
@@ -330,6 +331,8 @@ echo "Processing log file: $log_file cwd: $(pwd)"
 if ! grep -A1 't-sportModeValue timeResult.*support gps:01$' "$log_file" | grep sportTimes >sportmode-times.log; then 
     echo "No GPS activities found in log file" >&2
     exit 1
+else
+  echo "Found $(wc -l <sportmode-times.log) GPS activities in log file"
 fi
 
 # first filter hex data from log file
