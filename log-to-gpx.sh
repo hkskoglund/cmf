@@ -177,6 +177,22 @@ get_elevation_hoydedata()
     curl --silent --config curl-hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt >curl-hoydedata-response-"$FILENAME_POSTFIX".json
 }    
 
+merge_hr_gps_gemini() {
+  GROUP_BY_SECONDS=5
+  # watchband logs gps and heartrate data separately each 5 seconds, so we need to merge them
+  jq --slurp '
+    sort_by(.timestamp) |
+    group_by(.timestamp / '$GROUP_BY_SECONDS' | floor) |  # Group by n-second intervals
+    map(
+      if length == 1 then .[0]
+      else reduce .[] as $item ({}; . * $item) # Merge objects within the group
+      end
+    ) |
+    map(select(has("heartrate") and has("lon") and has("lat"))) # Filter complete entries
+  ' heartrate-"$FILENAME_POSTFIX".log gps-"$FILENAME_POSTFIX".log > track-"$FILENAME_POSTFIX".json
+  cleanup heartrate-"$FILENAME_POSTFIX".log gps-"$FILENAME_POSTFIX".log
+}
+
 merge_hr_gps()
 {
 
@@ -366,7 +382,7 @@ while [ $SPORTMODE_LINE_COUNTER -lt "$SPORTMODE_LINE_COUNTER_MAX" ]; do
     SPORTMODE_LINE_COUNTER=$((SPORTMODE_LINE_COUNTER+1))
     FILENAME_POSTFIX=$(get_filename_postfix "$SPORTMODE_LINE_COUNTER")
 
-    merge_hr_gps
+    merge_hr_gps_gemini
     create_gpx
 
     if [ -n "$ELEVATION_CORRECTION" ]; then
