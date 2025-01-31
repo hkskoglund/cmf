@@ -126,7 +126,7 @@ create_hoydedata_gpx()
     jq -s '[ .[].punkter.[] ]' curl-hoydedata-response-"$FILENAME_POSTFIX".json >curl-hoydedata-response-points-"$FILENAME_POSTFIX".json
 
     # with help from chatgpt ai
-    jq -s 'transpose | map(add | del(.x, .y, .datakilde, .terreng) | .ele = .z | del(.z))'  merged-hrlatlon-"$FILENAME_POSTFIX".json curl-hoydedata-response-points-"$FILENAME_POSTFIX".json >merged-hrlatlon-ele-"$FILENAME_POSTFIX".json
+    jq -s 'transpose | map(add | del(.x, .y, .datakilde, .terreng) | .ele = .z | del(.z))'  track-hrlatlon-"$FILENAME_POSTFIX".json curl-hoydedata-response-points-"$FILENAME_POSTFIX".json >track-hrlatlon-ele-"$FILENAME_POSTFIX".json
 
     if jq --raw-output '
 "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
@@ -151,23 +151,23 @@ create_hoydedata_gpx()
 "    </trkseg>\n" +
 "  </trk>\n" +
 "</gpx>\n"
-' merged-hrlatlon-ele-"$FILENAME_POSTFIX".json >merged-ele-"$FILENAME_POSTFIX".gpx; then 
-    echo "Created merged-ele-"$FILENAME_POSTFIX".gpx"
+' track-hrlatlon-ele-"$FILENAME_POSTFIX".json >track-ele-"$FILENAME_POSTFIX".gpx; then 
+    echo "Created track-ele-"$FILENAME_POSTFIX".gpx"
     else
-        echo "Failed to create merged-ele-"$FILENAME_POSTFIX".gpx"
+        echo "Failed to create track-ele-"$FILENAME_POSTFIX".gpx"
     fi
 
-  [ -n "$DELETE_FILES" ] && rm curl-hoydedata-response-"$FILENAME_POSTFIX".json curl-hoydedata-response-points-"$FILENAME_POSTFIX".json merged-hrlatlon-"$FILENAME_POSTFIX".json merged-hrlatlon-ele-"$FILENAME_POSTFIX".json
+  [ -n "$DELETE_FILES" ] && rm curl-hoydedata-response-"$FILENAME_POSTFIX".json curl-hoydedata-response-points-"$FILENAME_POSTFIX".json track-hrlatlon-"$FILENAME_POSTFIX".json track-hrlatlon-ele-"$FILENAME_POSTFIX".json
 }
 
 get_elevation_hoydedata()
 {
     #group into array of arrays with 50 in each array, due to api limit
-    jq -n '[inputs | . as $arr | range(0; $arr | length; 50) | $arr[.:(. + 50)]]' merged-hrlatlon-"$FILENAME_POSTFIX".json >merged-hrlatlon-grouped-"$FILENAME_POSTFIX".json
+    jq -n '[inputs | . as $arr | range(0; $arr | length; 50) | $arr[.:(. + 50)]]' track-hrlatlon-"$FILENAME_POSTFIX".json >track-hrlatlon-grouped-"$FILENAME_POSTFIX".json
 
     # add elevation to points, create curl url config pointlist for each group for ws.geonorge.no/hoydedata/v1/punkt
-    jq -r '.[] | "url = https://ws.geonorge.no/hoydedata/v1/punkt?koordsys=4258&punkter=\\["+ ( map("\\["+(.lon|tostring)+","+(.lat|tostring)+"\\]") |  join(","))+"\\]"' merged-hrlatlon-grouped-"$FILENAME_POSTFIX".json >curl-hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt
-    [ -n "$DELETE_FILES" ] && rm merged-hrlatlon-grouped-"$FILENAME_POSTFIX".json
+    jq -r '.[] | "url = https://ws.geonorge.no/hoydedata/v1/punkt?koordsys=4258&punkter=\\["+ ( map("\\["+(.lon|tostring)+","+(.lat|tostring)+"\\]") |  join(","))+"\\]"' track-hrlatlon-grouped-"$FILENAME_POSTFIX".json >curl-hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt
+    [ -n "$DELETE_FILES" ] && rm track-hrlatlon-grouped-"$FILENAME_POSTFIX".json
     echo "Fetching elevation data from ws.geonorge.no/hoydedata/v1/punkt"
     curl --silent --config curl-hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt >curl-hoydedata-response-"$FILENAME_POSTFIX".json
 }    
@@ -186,12 +186,12 @@ merge_hr_gps()
         else
             map(if (.timestamp - $entry.timestamp | abs) <= 2 then . * $entry else . end)
         end
-    )] | .[]' merged_sorted-"$FILENAME_POSTFIX".json > merged-"$FILENAME_POSTFIX".json
+    )] | .[]' merged_sorted-"$FILENAME_POSTFIX".json > track-"$FILENAME_POSTFIX".json
 
     # Remove objecs without heartrate,lat and lon
 
-    jq '[.[] | select(has("heartrate") and has("lon") and has("lat"))]' merged-"$FILENAME_POSTFIX".json > merged-hrlatlon-"$FILENAME_POSTFIX".json
-    [ -n "$DELETE_FILES" ] && rm heartrate-"$FILENAME_POSTFIX".log gps-"$FILENAME_POSTFIX".log merged_sorted-"$FILENAME_POSTFIX".json merged-"$FILENAME_POSTFIX".json
+    jq '[.[] | select(has("heartrate") and has("lon") and has("lat"))]' track-"$FILENAME_POSTFIX".json > track-hrlatlon-"$FILENAME_POSTFIX".json
+    [ -n "$DELETE_FILES" ] && rm heartrate-"$FILENAME_POSTFIX".log gps-"$FILENAME_POSTFIX".log merged_sorted-"$FILENAME_POSTFIX".json track-"$FILENAME_POSTFIX".json
 }
 
 create_gpx()
@@ -218,10 +218,10 @@ create_gpx()
     "    </trkseg>\n" +
     "  </trk>\n" +
     "</gpx>\n"
-    ' merged-hrlatlon-"$FILENAME_POSTFIX".json >merged-"$FILENAME_POSTFIX".gpx; then 
-         echo "Created merged-"$FILENAME_POSTFIX".gpx"
+    ' track-hrlatlon-"$FILENAME_POSTFIX".json >track-"$FILENAME_POSTFIX".gpx; then 
+         echo "Created track-"$FILENAME_POSTFIX".gpx"
     else
-        echo "Failed to create merged-"$FILENAME_POSTFIX".gpx"
+        echo "Failed to create track-"$FILENAME_POSTFIX".gpx"
         return 1
     fi
 }
@@ -295,7 +295,7 @@ Options:
    --pull              pull watchband log files from mobile phone which contains the hex data for heartrate and gps
    --file [log_file]   specify log file to process
    --delete            delete intermediary files, used for debugging
-   --hoydedata         get elevation data from ws.geonorge.no/hoydedata/v1/punkt and create merged-ele.gpx
+   --hoydedata         get elevation data from ws.geonorge.no/hoydedata/v1/punkt and create track-ele.gpx
 EOF
             exit 0
             ;;
@@ -371,6 +371,6 @@ while [ $SPORTMODE_LINE_COUNTER -lt "$SPORTMODE_LINE_COUNTER_MAX" ]; do
     [ -n "$DELETE_FILES" ] && rm curl-hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt  curl-hoydedata-response-"$FILENAME_POSTFIX".json curl-hoydedata-response-points-"$FILENAME_POSTFIX".json
     fi
 
-    [ -n "$DELETE_FILES" ] && rm merged-hrlatlon-"$FILENAME_POSTFIX".json
+    [ -n "$DELETE_FILES" ] && rm track-hrlatlon-"$FILENAME_POSTFIX".json
 done
 
