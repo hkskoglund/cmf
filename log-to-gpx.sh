@@ -33,6 +33,21 @@ print_utc_time()
 {
    date --utc -d @"$1" +"%Y-%m-%dT%H:%M:%SZ"
 }
+
+get_signed_number()
+# adapted from deepseek/handling two complements signed 32-bit numbers
+# $1 number
+# set SIGNED_NUMBER
+{
+    _masked_number=$(( "$1" & 0xFFFFFFFF ))     # Mask to 32-bit
+    if [ $(( ( "$_masked_number" >> 31 ) & 1 )) -eq 1 ]; then
+        SIGNED_NUMBER=$(( "$1" - 0x100000000 ))
+    else
+        SIGNED_NUMBER="$1"
+    fi
+    unset _masked_number
+}
+
 read_hex_rec()
 # debug info should be written to stderr
 {
@@ -65,11 +80,15 @@ read_hex_rec()
                 shift 4
                 #echo "gps read lon: $1 $2 $3 $4"
                 lon=$((0x"$4$3$2$1"))
+                get_signed_number "$lon"
+                lon=$SIGNED_NUMBER
                 lon_float=$(echo "scale=7; $lon / 10000000" | bc)
                 shift 4
                 #echo "gps read lat: $1 $2 $3 $4"
                 lat=$((0x"$4$3$2$1"))
-               lat_float=$(echo "scale=7; $lat / 10000000" | bc)
+                get_signed_number "$lat"
+                lat=$SIGNED_NUMBER
+                lat_float=$(echo "scale=7; $lat / 10000000" | bc)
                 shift 4
                 #echo "$timestamp_date $lat $lon" >&2
                 echo "{ \"timestamp\": $timestamp, \"timestamp_date\": \"$timestamp_date\", \"lat\" : $lat_float, \"lon\" : $lon_float }" 
