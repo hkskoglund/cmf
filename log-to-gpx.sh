@@ -27,7 +27,6 @@ cleanup() {
     [ -n "$DELETE_FILES" ] && rm -f "$@"
 }
 
-
 print_utc_time()
 # $1 timestamp
 {
@@ -130,7 +129,6 @@ filter_heartrate()
     # why are json not converted to heartrate: and ordinary timestamp: before upload?
     # logfile typo in ExeciseDatas -> ExerciseDatas
    
-    
     grep '.*WatchDataUpload-getExeciseDatas_start.*"abilityId":"'$RECVALUE_OUTDOOR_HEARTRATE'"' "$log_file" |  tee grep-heartrate.log | cut -b89- | jq -sr  '.[][] | select(.abilityId=="'$RECVALUE_OUTDOOR_HEARTRATE'") | .startTime+.datas' |  read_hex_rec $RECVALUE_OUTDOOR_HEARTRATE $RECCMD_OUTDOOR_HEARTRATE >heartrate.log
     cleanup grep-heartrate.log
 }
@@ -144,6 +142,7 @@ filter_gps()
     grep ".*l-GpsData" "$log_file" |  tee grep-gpsdata.log | cut -b48- | fold --width=$((24*16)) | read_hex_rec $RECVALUE_GPS $RECCMD_GPS >gps.log
     cleanup grep-gpsdata.log
 }
+
 create_hoydedata_gpx()
 {
 
@@ -176,9 +175,9 @@ create_hoydedata_gpx()
 "  </trk>\n" +
 "</gpx>\n"
 ' track-hrlatlon-ele-"$FILENAME_POSTFIX".json >track-ele-"$FILENAME_POSTFIX".gpx; then 
-    echo "Created track-ele-"$FILENAME_POSTFIX".gpx"
+    echo "Created track-ele-$FILENAME_POSTFIX.gpx"
     else
-        echo "Failed to create track-ele-"$FILENAME_POSTFIX".gpx"
+        echo "Failed to create track-ele-$FILENAME_POSTFIX.gpx"
     fi
 
   cleanup curl-hoydedata-response-"$FILENAME_POSTFIX".json curl-hoydedata-response-points-"$FILENAME_POSTFIX".json track-hrlatlon-"$FILENAME_POSTFIX".json track-hrlatlon-ele-"$FILENAME_POSTFIX".json
@@ -259,9 +258,9 @@ create_gpx()
     "  </trk>\n" +
     "</gpx>\n"
     ' track-hrlatlon-"$FILENAME_POSTFIX".json >track-"$FILENAME_POSTFIX".gpx; then 
-         echo "Created track-"$FILENAME_POSTFIX".gpx"
+         echo "Created track-$FILENAME_POSTFIX.gpx"
     else
-        echo "Failed to create track-"$FILENAME_POSTFIX".gpx"
+        echo "Failed to create track-$FILENAME_POSTFIX.gpx"
         return 1
     fi
 }
@@ -287,7 +286,7 @@ pull_watchband()
 get_filename_postfix()
 {
     # $1 counter
-    date --utc -d @"$(eval echo \$SPORTMODE_START_TIME_$1)" +%Y%m%d_%H%M%S
+    date --utc -d @"$(eval echo \$SPORTMODE_START_TIME_"$1")" +%Y%m%d_%H%M%S
 }
 
 split_heartrate_gps()
