@@ -206,7 +206,7 @@ merge_hr_gps_gemini() {
       else reduce .[] as $item ({}; . * $item) # Merge objects within the group
       end
     ) |
-    map(select(has("heartrate") and has("lon") and has("lat"))) # Filter complete entries
+    map(select(has("lon") and has("lat"))) # Filter complete entries
   ' heartrate-"$FILENAME_POSTFIX".log gps-"$FILENAME_POSTFIX".log > track-"$FILENAME_POSTFIX".json
   cleanup heartrate-"$FILENAME_POSTFIX".log gps-"$FILENAME_POSTFIX".log
 }
