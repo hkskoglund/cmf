@@ -164,11 +164,13 @@ create_hoydedata_gpx()
   "\">\n" +
 "        <time>" + .timestamp_date + "</time>\n" +
 "        <ele>" + (.ele | tostring) + "</ele>\n" +
-"        <extensions>\n" +
-"          <gpxtpx:TrackPointExtension >\n" +
-"            <gpxtpx:hr>" + (.heartrate | tostring) + "</gpxtpx:hr>\n" +
-"          </gpxtpx:TrackPointExtension>\n" +
-"        </extensions>\n" +
+    (if .heartrate != null then
+        "        <extensions>\n" +
+        "          <gpxtpx:TrackPointExtension >\n" +
+        "            <gpxtpx:hr>" + (.heartrate | tostring) + "</gpxtpx:hr>\n" +
+        "          </gpxtpx:TrackPointExtension>\n" +
+        "        </extensions>\n" 
+    else "" end) +
 "      </trkpt>"
 ) | join("\n") ) +
 "    </trkseg>\n" +
@@ -198,6 +200,7 @@ get_elevation_hoydedata()
 merge_hr_gps_gemini() {
   GROUP_BY_SECONDS=5
   # watchband logs gps and heartrate data separately each 5 seconds, so we need to merge them
+  set -x
   jq --slurp '
     sort_by(.timestamp) |
     group_by(.timestamp / '$GROUP_BY_SECONDS' | floor) |  # Group by n-second intervals
@@ -207,8 +210,11 @@ merge_hr_gps_gemini() {
       end
     ) |
     map(select(has("lon") and has("lat"))) # Filter complete entries
-  ' heartrate-"$FILENAME_POSTFIX".log gps-"$FILENAME_POSTFIX".log > track-"$FILENAME_POSTFIX".json
+  ' heartrate-"$FILENAME_POSTFIX".log gps-"$FILENAME_POSTFIX".log > track-hrlatlon-"$FILENAME_POSTFIX".json
+  _exitcode_merge_hr_gps_gemini=$?
+  set +x
   cleanup heartrate-"$FILENAME_POSTFIX".log gps-"$FILENAME_POSTFIX".log
+  return $_exitcode_merge_hr_gps_gemini
 }
 
 merge_hr_gps()
@@ -247,11 +253,13 @@ create_gpx()
     (.lon | tostring) + 
     "\">\n" +
     "        <time>" + .timestamp_date + "</time>\n" +
-    "        <extensions>\n" +
-    "          <gpxtpx:TrackPointExtension >\n" +
-    "            <gpxtpx:hr>" + (.heartrate | tostring) + "</gpxtpx:hr>\n" +
-    "          </gpxtpx:TrackPointExtension>\n" +
-    "        </extensions>\n" +
+    (if .heartrate != null then
+        "        <extensions>\n" +
+        "          <gpxtpx:TrackPointExtension >\n" +
+        "            <gpxtpx:hr>" + (.heartrate | tostring) + "</gpxtpx:hr>\n" +
+        "          </gpxtpx:TrackPointExtension>\n" +
+        "        </extensions>\n" 
+    else "" end) +
     "      </trkpt>"
     ) | join("\n") ) +
     "    </trkseg>\n" +
@@ -265,14 +273,18 @@ create_gpx()
     fi
 }
 
-pull_watchband()
+check_adb_installed()
 {
-    #  Check if adb is installed
+    # Check if adb is installed
     if ! command -v adb 1>/dev/null 2>/dev/null; then
         echo "adb could not be found. Please ensure adb is installed and added to your PATH."
-        echo "adb could not be found, please install it first."
         exit 1
     fi
+}
+
+pull_watchband()
+{
+    check_adb_installed
 
     # Check if a device is connected
     if adb get-state 1>/dev/null 2>&1; then
@@ -354,6 +366,19 @@ EOF
         --pull)
             pull_watchband
             ;;
+        --pull-gps)
+            # try to capture GPS files from watch
+            # use case: if debug log is not available, maybe GPS data is still available during upload
+            # 2025-01-30 14:10:16.039 [main] DEBUG t-sportModeValue gpsAbsolutePath:/storage/emulated/0/Android/data/com.nothing.cmf.watch/files/GPS/1738241253_1738242550.txt
+            pull_timeout=60
+            pull_sleep=0.1
+            echo "Pulling log files from /storage/emulated/0/Android/data/com.nothing.cmf.watch/files/watchband/GPS for $pull_timeout seconds"
+            timeout $pull_timeout bash -c "while true; do 
+                    adb pull /storage/emulated/0/Android/data/com.nothing.cmf.watch/files/watchband/GPS .
+                    sleep $pull_sleep
+                done"
+            ;;
+
         *) echo "Unknown option: $1" >&2
             exit 1
             ;;
@@ -400,17 +425,20 @@ while [ $SPORTMODE_LINE_COUNTER -lt "$SPORTMODE_LINE_COUNTER_MAX" ]; do
     SPORTMODE_LINE_COUNTER=$((SPORTMODE_LINE_COUNTER+1))
     FILENAME_POSTFIX=$(get_filename_postfix "$SPORTMODE_LINE_COUNTER")
 
-    merge_hr_gps_gemini
-    create_gpx
+    if merge_hr_gps_gemini; then 
+        create_gpx
 
-    if [ -n "$ELEVATION_CORRECTION" ]; then
-        # device does not provide elevation data, so fetch it from ws.geonorge.no/hoydedata/v1/punkt, and create gpx with elevation
-    if get_elevation_hoydedata; then 
-        create_hoydedata_gpx
-    fi
-    cleanup curl-hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt  curl-hoydedata-response-"$FILENAME_POSTFIX".json curl-hoydedata-response-points-"$FILENAME_POSTFIX".json
-    fi
+        if [ -n "$ELEVATION_CORRECTION" ]; then
+            # device does not provide elevation data, so fetch it from ws.geonorge.no/hoydedata/v1/punkt, and create gpx with elevation
+        if get_elevation_hoydedata; then 
+            create_hoydedata_gpx
+        fi
+        cleanup curl-hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt  curl-hoydedata-response-"$FILENAME_POSTFIX".json curl-hoydedata-response-points-"$FILENAME_POSTFIX".json
+        fi
 
-    cleanup track-hrlatlon-"$FILENAME_POSTFIX".json
+        cleanup track-hrlatlon-"$FILENAME_POSTFIX".json
+    else
+        echo >&2 "Failed to merge heartrate and gps data exitcode: $?"
+    fi
 done
 
