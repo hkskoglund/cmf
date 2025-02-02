@@ -149,7 +149,7 @@ create_hoydedata_gpx()
     jq -s '[ .[].punkter.[] ]' curl-hoydedata-response-"$FILENAME_POSTFIX".json >curl-hoydedata-response-points-"$FILENAME_POSTFIX".json
 
     # with help from chatgpt ai
-    jq -s 'transpose | map(add | del(.x, .y, .datakilde, .terreng) | .ele = .z | del(.z))'  track-hrlatlon-"$FILENAME_POSTFIX".json curl-hoydedata-response-points-"$FILENAME_POSTFIX".json >track-hrlatlon-ele-"$FILENAME_POSTFIX".json
+    jq -s 'transpose | map( add | if .datakilde == "dtm1" then .ele = .z else del(.ele) end | del(.x, .y, .z, .terreng, .datakilde) )'  track-hrlatlon-"$FILENAME_POSTFIX".json curl-hoydedata-response-points-"$FILENAME_POSTFIX".json >track-hrlatlon-ele-"$FILENAME_POSTFIX".json
 
     if jq --raw-output '
 "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
@@ -163,7 +163,9 @@ create_hoydedata_gpx()
   (.lon | tostring) + 
   "\">\n" +
 "        <time>" + .timestamp_date + "</time>\n" +
-"        <ele>" + (.ele | tostring) + "</ele>\n" +
+  (if .ele != null then
+    "        <ele>" + (.ele | tostring) + "</ele>\n" 
+  else "" end) +
     (if .heartrate != null then
         "        <extensions>\n" +
         "          <gpxtpx:TrackPointExtension >\n" +
@@ -200,7 +202,6 @@ get_elevation_hoydedata()
 merge_hr_gps_gemini() {
   GROUP_BY_SECONDS=5
   # watchband logs gps and heartrate data separately each 5 seconds, so we need to merge them
-  set -x
   jq --slurp '
     sort_by(.timestamp) |
     group_by(.timestamp / '$GROUP_BY_SECONDS' | floor) |  # Group by n-second intervals
@@ -212,7 +213,6 @@ merge_hr_gps_gemini() {
     map(select(has("lon") and has("lat"))) # Filter complete entries
   ' heartrate-"$FILENAME_POSTFIX".log gps-"$FILENAME_POSTFIX".log > track-hrlatlon-"$FILENAME_POSTFIX".json
   _exitcode_merge_hr_gps_gemini=$?
-  set +x
   cleanup heartrate-"$FILENAME_POSTFIX".log gps-"$FILENAME_POSTFIX".log
   return $_exitcode_merge_hr_gps_gemini
 }
