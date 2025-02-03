@@ -215,7 +215,7 @@ merge_hr_gps_gemini() {
       end
     ) |
     map(select(has("lon") and has("lat"))) | # Remove objects without lat and lon
-    map(if has("heartrate") and .heartrate > '$MAX_HEARTRATE' then del(.heartrate) else . end) # Remove heartrate values above MAX_HEARATE
+    map(if has("heartrate") and .heartrate > '"$MAX_HEARTRATE"' then del(.heartrate) else . end) # Remove heartrate values above MAX_HEARATE
   ' heartrate-"$FILENAME_POSTFIX".log gps-"$FILENAME_POSTFIX".log > track-hrlatlon-"$FILENAME_POSTFIX".json
   _exitcode_merge_hr_gps_gemini=$?
   cleanup heartrate-"$FILENAME_POSTFIX".log gps-"$FILENAME_POSTFIX".log
