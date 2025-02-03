@@ -149,7 +149,7 @@ create_hoydedata_gpx()
     jq -s '[ .[].punkter.[] ]' hoydedata-response-"$FILENAME_POSTFIX".json >hoydedata-response-points-"$FILENAME_POSTFIX".json
 
     # with help from chatgpt ai
-    jq -s 'transpose | map( add | if .datakilde == "dtm1" then .ele = .z else del(.ele) end | del(.x, .y, .z, .terreng, .datakilde) )'  track-hrlatlon-"$FILENAME_POSTFIX".json hoydedata-response-points-"$FILENAME_POSTFIX".json >track-hrlatlon-ele-"$FILENAME_POSTFIX".json
+    jq -s 'transpose | map( add | if .datakilde == "dtm1" or .datakilde == null then .ele = .z else del(.ele) end | del(.x, .y, .z, .terreng, .datakilde) )'  track-hrlatlon-"$FILENAME_POSTFIX".json hoydedata-response-points-"$FILENAME_POSTFIX".json >track-hrlatlon-ele-"$FILENAME_POSTFIX".json
 
     if jq --raw-output '
 "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
@@ -193,9 +193,12 @@ get_elevation_hoydedata()
     jq -n '[inputs | . as $arr | range(0; $arr | length; 50) | $arr[.:(. + 50)]]' track-hrlatlon-"$FILENAME_POSTFIX".json >track-hrlatlon-grouped-"$FILENAME_POSTFIX".json
 
     # add elevation to points, create curl url config pointlist for each group for ws.geonorge.no/hoydedata/v1/punkt
-    jq -r '.[] | "url = https://ws.geonorge.no/hoydedata/v1/punkt?koordsys=4258&punkter=\\["+ ( map("\\["+(.lon|tostring)+","+(.lat|tostring)+"\\]") |  join(","))+"\\]"' track-hrlatlon-grouped-"$FILENAME_POSTFIX".json >hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt
+    geonorge_url="https://ws.geonorge.no/hoydedata/v1/"
+    #geonorge_url="https://ws.geonorge.no/hoydedata/v1/datakilder/dtm1" # dtm1 is the only data source
+    geonorge_EPSG="4258"
+    jq -r '.[] | "url = '"$geonorge_url"'/punkt?koordsys='$geonorge_EPSG'&punkter=\\["+ ( map("\\["+(.lon|tostring)+","+(.lat|tostring)+"\\]") |  join(","))+"\\]"' track-hrlatlon-grouped-"$FILENAME_POSTFIX".json >hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt
     cleanup track-hrlatlon-grouped-"$FILENAME_POSTFIX".json
-    echo "Fetching elevation data from ws.geonorge.no/hoydedata/v1/punkt"
+    echo "Fetching elevation data from $geonorge_url"
     curl --silent --config hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt >hoydedata-response-"$FILENAME_POSTFIX".json
 }    
 
