@@ -146,10 +146,10 @@ filter_gps()
 create_hoydedata_gpx()
 {
 
-    jq -s '[ .[].punkter.[] ]' curl-hoydedata-response-"$FILENAME_POSTFIX".json >curl-hoydedata-response-points-"$FILENAME_POSTFIX".json
+    jq -s '[ .[].punkter.[] ]' hoydedata-response-"$FILENAME_POSTFIX".json >hoydedata-response-points-"$FILENAME_POSTFIX".json
 
     # with help from chatgpt ai
-    jq -s 'transpose | map( add | if .datakilde == "dtm1" then .ele = .z else del(.ele) end | del(.x, .y, .z, .terreng, .datakilde) )'  track-hrlatlon-"$FILENAME_POSTFIX".json curl-hoydedata-response-points-"$FILENAME_POSTFIX".json >track-hrlatlon-ele-"$FILENAME_POSTFIX".json
+    jq -s 'transpose | map( add | if .datakilde == "dtm1" then .ele = .z else del(.ele) end | del(.x, .y, .z, .terreng, .datakilde) )'  track-hrlatlon-"$FILENAME_POSTFIX".json hoydedata-response-points-"$FILENAME_POSTFIX".json >track-hrlatlon-ele-"$FILENAME_POSTFIX".json
 
     if jq --raw-output '
 "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
@@ -184,7 +184,7 @@ create_hoydedata_gpx()
         echo "Failed to create track-ele-$FILENAME_POSTFIX.gpx"
     fi
 
-  cleanup curl-hoydedata-response-"$FILENAME_POSTFIX".json curl-hoydedata-response-points-"$FILENAME_POSTFIX".json track-hrlatlon-"$FILENAME_POSTFIX".json track-hrlatlon-ele-"$FILENAME_POSTFIX".json
+  cleanup hoydedata-response-"$FILENAME_POSTFIX".json hoydedata-response-points-"$FILENAME_POSTFIX".json track-hrlatlon-"$FILENAME_POSTFIX".json track-hrlatlon-ele-"$FILENAME_POSTFIX".json
 }
 
 get_elevation_hoydedata()
@@ -193,10 +193,10 @@ get_elevation_hoydedata()
     jq -n '[inputs | . as $arr | range(0; $arr | length; 50) | $arr[.:(. + 50)]]' track-hrlatlon-"$FILENAME_POSTFIX".json >track-hrlatlon-grouped-"$FILENAME_POSTFIX".json
 
     # add elevation to points, create curl url config pointlist for each group for ws.geonorge.no/hoydedata/v1/punkt
-    jq -r '.[] | "url = https://ws.geonorge.no/hoydedata/v1/punkt?koordsys=4258&punkter=\\["+ ( map("\\["+(.lon|tostring)+","+(.lat|tostring)+"\\]") |  join(","))+"\\]"' track-hrlatlon-grouped-"$FILENAME_POSTFIX".json >curl-hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt
+    jq -r '.[] | "url = https://ws.geonorge.no/hoydedata/v1/punkt?koordsys=4258&punkter=\\["+ ( map("\\["+(.lon|tostring)+","+(.lat|tostring)+"\\]") |  join(","))+"\\]"' track-hrlatlon-grouped-"$FILENAME_POSTFIX".json >hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt
     cleanup track-hrlatlon-grouped-"$FILENAME_POSTFIX".json
     echo "Fetching elevation data from ws.geonorge.no/hoydedata/v1/punkt"
-    curl --silent --config curl-hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt >curl-hoydedata-response-"$FILENAME_POSTFIX".json
+    curl --silent --config hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt >hoydedata-response-"$FILENAME_POSTFIX".json
 }    
 
 merge_hr_gps_gemini() {
@@ -433,7 +433,7 @@ while [ $SPORTMODE_LINE_COUNTER -lt "$SPORTMODE_LINE_COUNTER_MAX" ]; do
         if get_elevation_hoydedata; then 
             create_hoydedata_gpx
         fi
-        cleanup curl-hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt  curl-hoydedata-response-"$FILENAME_POSTFIX".json curl-hoydedata-response-points-"$FILENAME_POSTFIX".json
+        cleanup hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt  hoydedata-response-"$FILENAME_POSTFIX".json hoydedata-response-points-"$FILENAME_POSTFIX".json
         fi
 
         cleanup track-hrlatlon-"$FILENAME_POSTFIX".json
