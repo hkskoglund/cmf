@@ -99,13 +99,19 @@ read_hex_rec()
                 lon=$((0x"$4$3$2$1"))
                 get_signed_number "$lon"
                 lon=$SIGNED_NUMBER
-                lon_float=$(echo "scale=7; $lon / 10000000" | bc)
+                lon_float_int=$(( "$lon" / 10000000 ))
+                lon_float_frac=$(( "$lon" % 10000000 ))
+                #lon_float=$(echo "scale=7; $lon / 10000000" | bc)
+                lon_float="$lon_float_int.$lon_float_frac"
                 shift 4
                 #echo "gps read lat: $1 $2 $3 $4"
                 lat=$((0x"$4$3$2$1"))
                 get_signed_number "$lat"
                 lat=$SIGNED_NUMBER
-                lat_float=$(echo "scale=7; $lat / 10000000" | bc)
+                lat_float_int=$(( "$lat" / 10000000 ))
+                lat_float_frac=$(( "$lat" % 10000000 ))
+                #lat_float=$(echo "scale=7; $lat / 10000000" | bc)
+                lat_float="$lat_float_int.$lat_float_frac"
                 shift 4
                 #echo "$lat $lon" >&2
                 echo "{ \"timestamp\": $timestamp, \"lat\" : $lat_float, \"lon\" : $lon_float }" 
