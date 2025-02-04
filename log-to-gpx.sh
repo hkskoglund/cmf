@@ -58,6 +58,7 @@ convert_hex_to_string()
         shift
     done
     printf "%b" "$_hex_string"
+    unset _hex_string
 }
 
 read_hex_rec()
@@ -158,6 +159,15 @@ filter_heartrate()
     grep '.*WatchDataUpload-getExeciseDatas_start.*"abilityId":"'$RECVALUE_OUTDOOR_HEARTRATE'"' "$log_file" |  tee grep-heartrate-"$LOG_FILE_DATE".log | cut -b89- | jq -sr  '.[][] | select(.abilityId=="'$RECVALUE_OUTDOOR_HEARTRATE'") | .startTime+.datas' |  read_hex_rec $RECVALUE_OUTDOOR_HEARTRATE $RECCMD_OUTDOOR_HEARTRATE >heartrate-"$LOG_FILE_DATE".log
     cleanup grep-heartrate-"$LOG_FILE_DATE".log heartrate-"$LOG_FILE_DATE".bin
 }
+
+filter_heartrate_strava()
+# seems like all heartrate data is available in dataList, so we can just grep that
+{
+    cleanup heartrate-"$LOG_FILE_DATE".bin
+    grep -o 'dataList:.*' "$log_file" |  tee grep-heartrate-"$LOG_FILE_DATE".log | cut -b10- | jq -s '.[][] | { timestamp : .timeStamp | tonumber, heartrate: .hr }' >heartrate-"$LOG_FILE_DATE".log
+    cleanup grep-heartrate-"$LOG_FILE_DATE".log heartrate-"$LOG_FILE_DATE".bin
+}
+
 
 filter_gps()
 {
