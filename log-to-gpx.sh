@@ -25,7 +25,7 @@ RECPAYLOAD_GPS="gpsplayload"
 RECBYTECUTPOS_GPS=54
 
 cleanup() {
-    [ -n "$DELETE_FILES" ] && rm -f "$@"
+    [ -z "$SAVE_TEMPS" ] && rm -f "$@"
 }
 
 print_utc_time()
@@ -73,6 +73,7 @@ read_hex_rec()
         #shellcheck disable=SC2046
         set --  $(echo "$line" | fold --width=2 | paste --serial --delimiter=' ')
 
+        # convert hex lines into a binary file
         if [ "$reccmd" = "$RECCMD_OUTDOOR_HEARTRATE" ] && [ "$recvalue" = "$RECVALUE_OUTDOOR_HEARTRATE" ]; then
             convert_hex_to_string "$@" >>heartrate-"$LOG_FILE_DATE".bin
         elif [ "$reccmd" = "$RECCMD_GPS" ] && [ "$recvalue" = "$RECVALUE_GPS" ]; then
@@ -84,18 +85,15 @@ read_hex_rec()
             if [ "$reccmd" = "$RECCMD_OUTDOOR_HEARTRATE" ] && [ "$recvalue" = "$RECVALUE_OUTDOOR_HEARTRATE" ]; then
                 #echo read timestamp: "$1 $2 $3 $4" >&2
                 timestamp=$((0x"$4$3$2$1"))
-                timestamp_date=$(print_utc_time "$timestamp")
                 shift 4
                 #echo read heartrate: "$1 $2 $3 $4"
                 heartrate=$((0x"$4$3$2$1"))
                 shift 4
-                #echo "$timestamp_date $heartrate" >&2
-                echo "{ \"timestamp\": $timestamp, \"timestamp_date\": \"$timestamp_date\", \"heartrate\" : $heartrate }" 
+                echo "{ \"timestamp\": $timestamp, \"heartrate\" : $heartrate }" 
             elif [ "$reccmd" = "$RECCMD_GPS" ] && [ "$recvalue" = "$RECVALUE_GPS" ]; then
                 # gps track
                 #echo gps read timestamp: "$1 $2 $3 $4"
                 timestamp=$((0x"$4$3$2$1"))
-                timestamp_date=$(print_utc_time "$timestamp")
                 shift 4
                 #echo "gps read lon: $1 $2 $3 $4"
                 lon=$((0x"$4$3$2$1"))
@@ -109,8 +107,8 @@ read_hex_rec()
                 lat=$SIGNED_NUMBER
                 lat_float=$(echo "scale=7; $lat / 10000000" | bc)
                 shift 4
-                #echo "$timestamp_date $lat $lon" >&2
-                echo "{ \"timestamp\": $timestamp, \"timestamp_date\": \"$timestamp_date\", \"lat\" : $lat_float, \"lon\" : $lon_float }" 
+                #echo "$lat $lon" >&2
+                echo "{ \"timestamp\": $timestamp, \"lat\" : $lat_float, \"lon\" : $lon_float }" 
 
             fi
         
@@ -151,7 +149,7 @@ filter_heartrate()
    
     touch heartrate-"$LOG_FILE_DATE".bin
     grep '.*WatchDataUpload-getExeciseDatas_start.*"abilityId":"'$RECVALUE_OUTDOOR_HEARTRATE'"' "$log_file" |  tee grep-heartrate-"$LOG_FILE_DATE".log | cut -b89- | jq -sr  '.[][] | select(.abilityId=="'$RECVALUE_OUTDOOR_HEARTRATE'") | .startTime+.datas' |  read_hex_rec $RECVALUE_OUTDOOR_HEARTRATE $RECCMD_OUTDOOR_HEARTRATE >heartrate-"$LOG_FILE_DATE".log
-    cleanup grep-heartrate-"$LOG_FILE_DATE".log
+    cleanup grep-heartrate-"$LOG_FILE_DATE".log heartrate-"$LOG_FILE_DATE".bin
 }
 
 filter_gps()
@@ -162,7 +160,7 @@ filter_gps()
   
     touch  gps-"$LOG_FILE_DATE".bin
     grep ".*l-GpsData" "$log_file" |  tee grep-gpsdata-"$LOG_FILE_DATE".log | cut -b48- | fold --width=$((24*16)) | read_hex_rec $RECVALUE_GPS $RECCMD_GPS >gps-"$LOG_FILE_DATE".log
-    cleanup grep-gpsdata-"$LOG_FILE_DATE".log
+    cleanup grep-gpsdata-"$LOG_FILE_DATE".log gps-"$LOG_FILE_DATE".bin
 }
 
 create_hoydedata_gpx()
@@ -184,7 +182,7 @@ create_hoydedata_gpx()
   "\" lon=\"" + 
   (.lon | tostring) + 
   "\">\n" +
-"        <time>" + .timestamp_date + "</time>\n" +
+"        <time>" + (.timestamp | strftime("%Y-%m-%dT%H:%M:%SZ")) + "</time>\n" +
   (if .ele != null then
     "        <ele>" + (.ele | tostring) + "</ele>\n" 
   else "" end) +
@@ -278,7 +276,7 @@ create_gpx()
     "\" lon=\"" + 
     (.lon | tostring) + 
     "\">\n" +
-    "        <time>" + .timestamp_date + "</time>\n" +
+    "        <time>" + (.timestamp | strftime("%Y-%m-%dT%H:%M:%SZ")) + "</time>\n" +
     (if .heartrate != null then
         "        <extensions>\n" +
         "          <gpxtpx:TrackPointExtension >\n" +
@@ -370,14 +368,13 @@ Converts hex data from cmf watch app log file to gpx file
 Options:
    --pull              pull watchband log files from mobile phone which contains the hex data for heartrate and gps
    --file [log_file]   specify log file to process
-   --delete            delete intermediary files, used for debugging
+   --save-temps        save temporary files for debugging
    --hoydedata         get elevation data from ws.geonorge.no/hoydedata/v1/punkt and create track-ele.gpx
 EOF
             exit 0
             ;;
-        --delete)
-            # delete intermediary files
-            DELETE_FILES=true
+        --save-temps)
+            SAVE_TEMPS=true
             ;;
         --hoydedata)
             ELEVATION_CORRECTION=true
@@ -468,3 +465,5 @@ while [ $SPORTMODE_LINE_COUNTER -lt "$SPORTMODE_LINE_COUNTER_MAX" ]; do
     fi
 done
 
+cleanup heartrate-"$LOG_FILE_DATE".log gps-"$LOG_FILE_DATE".log
+ 
