@@ -48,6 +48,18 @@ get_signed_number()
     unset _masked_number
 }
 
+convert_hex_to_string()
+# convert hex to binary string for output to file
+{
+
+    unset _hex_string
+    while [ $# -gt 0 ]; do
+        _hex_string="$_hex_string""\\x$1"
+        shift
+    done
+    printf "%b" "$_hex_string"
+}
+
 read_hex_rec()
 # debug info should be written to stderr
 {
@@ -60,6 +72,13 @@ read_hex_rec()
         #echo "read: $line" >&2
         #shellcheck disable=SC2046
         set --  $(echo "$line" | fold --width=2 | paste --serial --delimiter=' ')
+
+        if [ "$reccmd" = "$RECCMD_OUTDOOR_HEARTRATE" ] && [ "$recvalue" = "$RECVALUE_OUTDOOR_HEARTRATE" ]; then
+            convert_hex_to_string "$@" >>heartrate-"$LOG_FILE_DATE".bin
+        elif [ "$reccmd" = "$RECCMD_GPS" ] && [ "$recvalue" = "$RECVALUE_GPS" ]; then
+            convert_hex_to_string "$@" >>gps-"$LOG_FILE_DATE".bin
+        fi
+
         while [ $# -ge 8 ]; do
 
             if [ "$reccmd" = "$RECCMD_OUTDOOR_HEARTRATE" ] && [ "$recvalue" = "$RECVALUE_OUTDOOR_HEARTRATE" ]; then
@@ -130,8 +149,9 @@ filter_heartrate()
     # why are json not converted to heartrate: and ordinary timestamp: before upload?
     # logfile typo in ExeciseDatas -> ExerciseDatas
    
-    grep '.*WatchDataUpload-getExeciseDatas_start.*"abilityId":"'$RECVALUE_OUTDOOR_HEARTRATE'"' "$log_file" |  tee grep-heartrate.log | cut -b89- | jq -sr  '.[][] | select(.abilityId=="'$RECVALUE_OUTDOOR_HEARTRATE'") | .startTime+.datas' |  read_hex_rec $RECVALUE_OUTDOOR_HEARTRATE $RECCMD_OUTDOOR_HEARTRATE >heartrate.log
-    cleanup grep-heartrate.log
+    touch heartrate-"$LOG_FILE_DATE".bin
+    grep '.*WatchDataUpload-getExeciseDatas_start.*"abilityId":"'$RECVALUE_OUTDOOR_HEARTRATE'"' "$log_file" |  tee grep-heartrate-"$LOG_FILE_DATE".log | cut -b89- | jq -sr  '.[][] | select(.abilityId=="'$RECVALUE_OUTDOOR_HEARTRATE'") | .startTime+.datas' |  read_hex_rec $RECVALUE_OUTDOOR_HEARTRATE $RECCMD_OUTDOOR_HEARTRATE >heartrate-"$LOG_FILE_DATE".log
+    cleanup grep-heartrate-"$LOG_FILE_DATE".log
 }
 
 filter_gps()
@@ -140,8 +160,9 @@ filter_gps()
     # it is safer to read one line, than grepping multiple records/lines
     # also this is INFO debug level, which may not be turned off
   
-    grep ".*l-GpsData" "$log_file" |  tee grep-gpsdata.log | cut -b48- | fold --width=$((24*16)) | read_hex_rec $RECVALUE_GPS $RECCMD_GPS >gps.log
-    cleanup grep-gpsdata.log
+    touch  gps-"$LOG_FILE_DATE".bin
+    grep ".*l-GpsData" "$log_file" |  tee grep-gpsdata-"$LOG_FILE_DATE".log | cut -b48- | fold --width=$((24*16)) | read_hex_rec $RECVALUE_GPS $RECCMD_GPS >gps-"$LOG_FILE_DATE".log
+    cleanup grep-gpsdata-"$LOG_FILE_DATE".log
 }
 
 create_hoydedata_gpx()
@@ -306,7 +327,7 @@ get_filename_postfix()
     date --utc -d @"$(eval echo \$SPORTMODE_START_TIME_"$1")" +%Y%m%d_%H%M%S
 }
 
-split_heartrate_gps()
+parse_sportmode_times()
 {
     OIFS="$IFS"
     IFS="$IFS:>"
@@ -324,9 +345,7 @@ split_heartrate_gps()
         eval SPORTMODE_START_TIME_$SPORTMODE_LINE_COUNTER="$start_time"
         eval SPORTMODE_STOP_TIME_$SPORTMODE_LINE_COUNTER="$stop_time"
         echo "sport_type: $sport_type $start_time: $start_time $(print_utc_time "$start_time") stop_time: $stop_time $(print_utc_time "$stop_time")" >&2
-        FILENAME_POSTFIX=$(get_filename_postfix "$SPORTMODE_LINE_COUNTER")
-        jq 'select(.timestamp >='"$start_time"' and .timestamp <='"$stop_time"')' heartrate.log >heartrate-"$FILENAME_POSTFIX".log
-        jq 'select(.timestamp >='"$start_time"' and .timestamp <='"$stop_time"')' gps.log >gps-"$FILENAME_POSTFIX".log
+       
     done <sportmode-times.log
     IFS="$OIFS"
     SPORTMODE_LINE_COUNTER_MAX=$SPORTMODE_LINE_COUNTER
@@ -411,15 +430,26 @@ else
 fi
 
 # first filter hex data from log file
+# data/watchband/log_20250202.txt
+LOG_FILE_DATE=$(basename "$log_file")
+LOG_FILE_DATE=${LOG_FILE_DATE%.txt}
+LOG_FILE_DATE=${LOG_FILE_DATE#"log_"}
 
 filter_heartrate
 filter_gps
-split_heartrate_gps
+parse_sportmode_times
 
 SPORTMODE_LINE_COUNTER=0
 while [ $SPORTMODE_LINE_COUNTER -lt "$SPORTMODE_LINE_COUNTER_MAX" ]; do
     SPORTMODE_LINE_COUNTER=$((SPORTMODE_LINE_COUNTER+1))
     FILENAME_POSTFIX=$(get_filename_postfix "$SPORTMODE_LINE_COUNTER")
+
+    # filter heartate and gps between start and stop time
+    FILENAME_POSTFIX=$(get_filename_postfix "$SPORTMODE_LINE_COUNTER")
+    start_time=$(eval echo \$SPORTMODE_START_TIME_"$SPORTMODE_LINE_COUNTER")
+    stop_time=$(eval echo \$SPORTMODE_STOP_TIME_"$SPORTMODE_LINE_COUNTER")
+    jq 'select(.timestamp >='"$start_time"' and .timestamp <='"$stop_time"')' heartrate-"$LOG_FILE_DATE".log >heartrate-"$FILENAME_POSTFIX".log
+    jq 'select(.timestamp >='"$start_time"' and .timestamp <='"$stop_time"')' gps-"$LOG_FILE_DATE".log >gps-"$FILENAME_POSTFIX".log
 
     if merge_hr_gps_gemini; then 
         create_gpx
