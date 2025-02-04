@@ -110,7 +110,7 @@ read_hex_rec()
                 get_signed_number "$lat"
                 lat=$SIGNED_NUMBER
                 lat_float_int=$(( "$lat" / 10000000 ))
-                lat_float_frac=$(( "$lat" - "$lat_float_int" * 10000000 ))
+                lat_float_frac=$(( "$lat" % 10000000 ))        
                 lat_float="$lat_float_int.$(printf "%07d" $lat_float_frac)"
                 #lat_float=$(echo "scale=7; $lat / 10000000" | bc)
                 shift 4
