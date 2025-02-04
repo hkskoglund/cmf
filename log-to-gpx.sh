@@ -101,19 +101,20 @@ read_hex_rec()
                 lon=$SIGNED_NUMBER
                 lon_float_int=$(( "$lon" / 10000000 ))
                 lon_float_frac=$(( "$lon" % 10000000 ))
+                # printf "%07d" suggested by gemini AI, otherwise losing leading zeros which is important
+                lon_float="$lon_float_int.$(printf "%07d" $lon_float_frac)"
                 #lon_float=$(echo "scale=7; $lon / 10000000" | bc)
-                lon_float="$lon_float_int.$lon_float_frac"
                 shift 4
                 #echo "gps read lat: $1 $2 $3 $4"
                 lat=$((0x"$4$3$2$1"))
                 get_signed_number "$lat"
                 lat=$SIGNED_NUMBER
                 lat_float_int=$(( "$lat" / 10000000 ))
-                lat_float_frac=$(( "$lat" % 10000000 ))
+                lat_float_frac=$(( "$lat" - "$lat_float_int" * 10000000 ))
+                lat_float="$lat_float_int.$(printf "%07d" $lat_float_frac)"
                 #lat_float=$(echo "scale=7; $lat / 10000000" | bc)
-                lat_float="$lat_float_int.$lat_float_frac"
                 shift 4
-                #echo "$lat $lon" >&2
+                #echo "$lat $lon $lat_float $lon_float" >&2
                 echo "{ \"timestamp\": $timestamp, \"lat\" : $lat_float, \"lon\" : $lon_float }" 
 
             fi
@@ -219,10 +220,10 @@ get_elevation_hoydedata()
     jq -n '[inputs | . as $arr | range(0; $arr | length; 50) | $arr[.:(. + 50)]]' track-hrlatlon-"$FILENAME_POSTFIX".json >track-hrlatlon-grouped-"$FILENAME_POSTFIX".json
 
     # add elevation to points, create curl url config pointlist for each group for ws.geonorge.no/hoydedata/v1/punkt
-    geonorge_url="https://ws.geonorge.no/hoydedata/v1/"
-    #geonorge_url="https://ws.geonorge.no/hoydedata/v1/datakilder/dtm1" # dtm1 is the only data source
+    geonorge_url="https://ws.geonorge.no/hoydedata/v1/punkt"
+    #geonorge_url="https://ws.geonorge.no/hoydedata/v1/datakilder/dtm1/punkt" # dtm1 is the only data source
     geonorge_EPSG="4258"
-    jq -r '.[] | "url = '"$geonorge_url"'/punkt?koordsys='$geonorge_EPSG'&punkter=\\["+ ( map("\\["+(.lon|tostring)+","+(.lat|tostring)+"\\]") |  join(","))+"\\]"' track-hrlatlon-grouped-"$FILENAME_POSTFIX".json >hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt
+    jq -r '.[] | "url = '"$geonorge_url"'?koordsys='$geonorge_EPSG'&punkter=\\["+ ( map("\\["+(.lon|tostring)+","+(.lat|tostring)+"\\]") |  join(","))+"\\]"' track-hrlatlon-grouped-"$FILENAME_POSTFIX".json >hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt
     cleanup track-hrlatlon-grouped-"$FILENAME_POSTFIX".json
     echo "Fetching elevation data from $geonorge_url"
     curl --silent --config hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt >hoydedata-response-"$FILENAME_POSTFIX".json
