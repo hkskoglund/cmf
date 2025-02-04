@@ -153,7 +153,7 @@ filter_heartrate()
     # why are json not converted to heartrate: and ordinary timestamp: before upload?
     # logfile typo in ExeciseDatas -> ExerciseDatas
    
-    touch heartrate-"$LOG_FILE_DATE".bin
+    cleanup heartrate-"$LOG_FILE_DATE".bin
     grep '.*WatchDataUpload-getExeciseDatas_start.*"abilityId":"'$RECVALUE_OUTDOOR_HEARTRATE'"' "$log_file" |  tee grep-heartrate-"$LOG_FILE_DATE".log | cut -b89- | jq -sr  '.[][] | select(.abilityId=="'$RECVALUE_OUTDOOR_HEARTRATE'") | .startTime+.datas' |  read_hex_rec $RECVALUE_OUTDOOR_HEARTRATE $RECCMD_OUTDOOR_HEARTRATE >heartrate-"$LOG_FILE_DATE".log
     cleanup grep-heartrate-"$LOG_FILE_DATE".log heartrate-"$LOG_FILE_DATE".bin
 }
@@ -164,7 +164,7 @@ filter_gps()
     # it is safer to read one line, than grepping multiple records/lines
     # also this is INFO debug level, which may not be turned off
   
-    touch  gps-"$LOG_FILE_DATE".bin
+    cleanup  gps-"$LOG_FILE_DATE".bin
     grep ".*l-GpsData" "$log_file" |  tee grep-gpsdata-"$LOG_FILE_DATE".log | cut -b48- | fold --width=$((24*16)) | read_hex_rec $RECVALUE_GPS $RECCMD_GPS >gps-"$LOG_FILE_DATE".log
     cleanup grep-gpsdata-"$LOG_FILE_DATE".log gps-"$LOG_FILE_DATE".bin
 }
