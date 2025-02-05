@@ -387,6 +387,8 @@ Options:
    --file [log_file]   specify log file to process
    --save-temps        save temporary files for debugging
    --hoydedata         get elevation data from ws.geonorge.no/hoydedata/v1/punkt and create track-ele.gpx
+   --max-hr            maximum heartrate value, default 177
+   --no-heartrate      skip heartrate data
 EOF
             exit 0
             ;;
@@ -408,6 +410,9 @@ EOF
             MAX_HEARTRATE="$2"
             shift
             ;;
+        --no-heartrate)
+            OPTION_NO_HEARTRATE=true
+            ;;
         *) echo "Unknown option: $1" >&2
             exit 1
             ;;
@@ -421,7 +426,7 @@ if [ -z "$log_file" ]; then
 fi
 
 if [ ! -f "$log_file" ]; then
-    echo "Log file $log_file does not exist."
+    echo "Log file $log_file does not exist. If needed, connect mobile phone/usb debugging and use --pull to fetch log files produced by the cmf watch app"
     exit 1
 fi
 
@@ -464,6 +469,12 @@ while [ $SPORTMODE_LINE_COUNTER -lt "$SPORTMODE_LINE_COUNTER_MAX" ]; do
     stop_time=$(eval echo \$SPORTMODE_STOP_TIME_"$SPORTMODE_LINE_COUNTER")
     jq 'select(.timestamp >='"$start_time"' and .timestamp <='"$stop_time"')' heartrate-"$LOG_FILE_DATE".log >heartrate-"$FILENAME_POSTFIX".log
     jq 'select(.timestamp >='"$start_time"' and .timestamp <='"$stop_time"')' gps-"$LOG_FILE_DATE".log >gps-"$FILENAME_POSTFIX".log
+
+    if [ -n "$OPTION_NO_HEARTRATE" ]; then
+        echo "Skipping heartrate data"
+        rm heartrate-"$FILENAME_POSTFIX".log
+        touch heartrate-"$FILENAME_POSTFIX".log
+    fi
 
     if merge_hr_gps_gemini; then 
         create_gpx
