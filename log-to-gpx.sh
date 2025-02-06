@@ -157,7 +157,25 @@ filter_heartrate()
    
     cleanup heartrate-"$LOG_FILE_DATE".bin
     grep '.*WatchDataUpload-getExeciseDatas_start.*"abilityId":"'$RECVALUE_OUTDOOR_HEARTRATE'"' "$log_file" |  tee grep-heartrate-"$LOG_FILE_DATE".log | cut -b89- | jq -sr  '.[][] | select(.abilityId=="'$RECVALUE_OUTDOOR_HEARTRATE'") | .startTime+.datas' |  read_hex_rec $RECVALUE_OUTDOOR_HEARTRATE $RECCMD_OUTDOOR_HEARTRATE >heartrate-"$LOG_FILE_DATE".log
-    cleanup grep-heartrate-"$LOG_FILE_DATE".log heartrate-"$LOG_FILE_DATE".bin
+
+    # filter 6*5 seconds after heartrate above MAX_HEARTRATE and 6*5 seconds before
+    # this filter was created to remove supurious high heartrate values
+    skip_measurement_over_max_hr=6
+    if [ -n "$OPTION_SKIP_OVER_MAX_HR" ]; then
+        cp heartrate-"$LOG_FILE_DATE".log heartrate-"$LOG_FILE_DATE"-original.log
+        jq --slurp --compact-output '
+            reduce .[] as $item ({skip: 0, result: []};
+                if .skip > 0 then .skip -= 1
+                elif $item.heartrate > '"$MAX_HEARTRATE"' then .result += [$item] | .skip = '"$skip_measurement_over_max_hr"'
+                else .result += [$item] end
+            ) | .result | reverse |
+            reduce .[] as $item ({skip: 0, result: []};
+                if .skip > 0 then .skip -= 1
+                elif $item.heartrate > '"$MAX_HEARTRATE"' then .skip = '"$skip_measurement_over_max_hr"'
+                else .result += [$item] end
+            ) | .result | reverse | .[]' "heartrate-$LOG_FILE_DATE-original.log" > "heartrate-$LOG_FILE_DATE.log"
+    fi
+    cleanup grep-heartrate-"$LOG_FILE_DATE".log heartrate-"$LOG_FILE_DATE".bin heartrate-"$LOG_FILE_DATE"-original.log
 }
 
 filter_heartrate_strava()
@@ -412,6 +430,9 @@ EOF
             ;;
         --no-heartrate)
             OPTION_NO_HEARTRATE=true
+            ;;
+        --skip-over-max-hr)
+            OPTION_SKIP_OVER_MAX_HR=true
             ;;
         *) echo "Unknown option: $1" >&2
             exit 1
