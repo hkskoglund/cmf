@@ -162,6 +162,7 @@ filter_heartrate()
     # this filter was created to remove supurious high heartrate values
     skip_measurement_over_max_hr=6
     if [ -n "$OPTION_SKIP_OVER_MAX_HR" ]; then
+        echo "Skipping $skip_measurement_over_max_hr measurements after and before heartrate over $MAX_HEARTRATE"
         cp heartrate-"$LOG_FILE_DATE".log heartrate-"$LOG_FILE_DATE"-original.log
         jq --slurp --compact-output '
             reduce .[] as $item ({skip: 0, result: []};
@@ -174,6 +175,11 @@ filter_heartrate()
                 elif $item.heartrate > '"$MAX_HEARTRATE"' then .skip = '"$skip_measurement_over_max_hr"'
                 else .result += [$item] end
             ) | .result | reverse | .[]' "heartrate-$LOG_FILE_DATE-original.log" > "heartrate-$LOG_FILE_DATE.log"
+    fi
+    if [ -n "$OPTION_FORCE_HEARTRATE" ]; then
+        echo "Forcing heartrate to $OPTION_FORCE_HEARTRATE_VALUE"
+        cp heartrate-"$LOG_FILE_DATE".log heartrate-"$LOG_FILE_DATE"-original.log
+        jq --slurp --compact-output ".[].heartrate = $OPTION_FORCE_HEARTRATE_VALUE | .[]" "heartrate-$LOG_FILE_DATE-original.log" > "heartrate-$LOG_FILE_DATE.log"
     fi
     cleanup grep-heartrate-"$LOG_FILE_DATE".log heartrate-"$LOG_FILE_DATE".bin heartrate-"$LOG_FILE_DATE"-original.log
 }
@@ -401,13 +407,14 @@ while [ $# -gt 0 ]; do
 Usage: $0 [log_file]
 Converts hex data from cmf watch app log file to gpx file
 Options:
-   --pull              pull watchband log files from mobile phone which contains the hex data for heartrate and gps
-   --file [log_file]   specify log file to process
-   --save-temps        save temporary files for debugging
-   --hoydedata         get elevation data from ws.geonorge.no/hoydedata/v1/punkt and create track-ele.gpx
-   --max-hr            maximum heartrate value, default 177
-   --no-heartrate      no heartrate data
-   --skip-over-max-hr  skip 6 measurements after and before hr over max hr
+   --pull                       pull watchband log files from mobile phone which contains the hex data for heartrate and gps
+   --file [log_file]            specify log file to process
+   --save-temps                 save temporary files for debugging
+   --hoydedata                  get elevation data from ws.geonorge.no/hoydedata/v1/punkt and create track-ele.gpx
+   --max-hr                     maximum heartrate value, default 177
+   --no-heartrate               no heartrate data
+   --skip-over-max-hr           skip 6 measurements after and before hr over max hr
+   --force-heartrate [value]    force heartrate to value
 EOF
             exit 0
             ;;
@@ -434,6 +441,11 @@ EOF
             ;;
         --skip-over-max-hr)
             OPTION_SKIP_OVER_MAX_HR=true
+            ;;
+        --force-heartrate)
+            OPTION_FORCE_HEARTRATE=true
+            OPTION_FORCE_HEARTRATE_VALUE="$2"
+            shift
             ;;
         *) echo "Unknown option: $1" >&2
             exit 1
