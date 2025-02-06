@@ -204,7 +204,7 @@ create_hoydedata_gpx()
     jq -s '[ .[].punkter.[] ]' hoydedata-response-"$FILENAME_POSTFIX".json >hoydedata-response-points-"$FILENAME_POSTFIX".json
 
     # with help from chatgpt ai
-    jq -s 'transpose | map(  add| if .ele < 0 then .ele = 0 else .end | del(.x, .y, .z, .terreng, .datakilde) )'  track-hrlatlon-"$FILENAME_POSTFIX".json hoydedata-response-points-"$FILENAME_POSTFIX".json >track-hrlatlon-ele-"$FILENAME_POSTFIX".json
+    jq -s 'transpose | map(  add| if .z < 0 then .ele = 0 else .ele = .z end | del(.x, .y, .z, .terreng, .datakilde) )'  track-hrlatlon-"$FILENAME_POSTFIX".json hoydedata-response-points-"$FILENAME_POSTFIX".json >track-hrlatlon-ele-"$FILENAME_POSTFIX".json
 
     if jq --raw-output '
 "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
