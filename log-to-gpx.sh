@@ -1,6 +1,8 @@
 #!/bin/sh
 GPX_CREATOR=$(basename "$0")
 MAX_HEARTRATE=177
+printf "%s for CMF Watch Pro 2 Model D398, firmware 1.0.070 and Android CMF Watch App 3.4.3 (with debug/logging enabled), adb required for pulling log files for mobile\n" "$GPX_CREATOR"
+
 
 # log file in ./files/watchband directory on device
 # requires: data must be downloaded from the watchband by the app
