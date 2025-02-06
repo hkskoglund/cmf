@@ -406,7 +406,8 @@ Options:
    --save-temps        save temporary files for debugging
    --hoydedata         get elevation data from ws.geonorge.no/hoydedata/v1/punkt and create track-ele.gpx
    --max-hr            maximum heartrate value, default 177
-   --no-heartrate      skip heartrate data
+   --no-heartrate      no heartrate data
+   --skip-over-max-hr  skip 6 measurements after and before hr over max hr
 EOF
             exit 0
             ;;
