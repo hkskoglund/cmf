@@ -78,9 +78,9 @@ read_hex_rec()
 
         # convert hex lines into a binary file
         if [ "$reccmd" = "$RECCMD_OUTDOOR_HEARTRATE" ] && [ "$recvalue" = "$RECVALUE_OUTDOOR_HEARTRATE" ]; then
-            convert_hex_to_string "$@" >>heartrate-"$LOG_FILE_DATE".bin
+            convert_hex_to_string "$@" >>heartrate-"$LOG_FILE_DATE".hex
         elif [ "$reccmd" = "$RECCMD_GPS" ] && [ "$recvalue" = "$RECVALUE_GPS" ]; then
-            convert_hex_to_string "$@" >>gps-"$LOG_FILE_DATE".bin
+            convert_hex_to_string "$@" >>gps-"$LOG_FILE_DATE".hex
         fi
 
         while [ $# -ge 8 ]; do
@@ -157,7 +157,7 @@ filter_heartrate()
     # why are json not converted to heartrate: and ordinary timestamp: before upload?
     # logfile typo in ExeciseDatas -> ExerciseDatas
    
-    cleanup heartrate-"$LOG_FILE_DATE".bin
+    cleanup heartrate-"$LOG_FILE_DATE".hex
     grep '.*WatchDataUpload-getExeciseDatas_start.*"abilityId":"'$RECVALUE_OUTDOOR_HEARTRATE'"' "$log_file" |  tee grep-heartrate-"$LOG_FILE_DATE".log | cut -b89- | jq -sr  '.[][] | select(.abilityId=="'$RECVALUE_OUTDOOR_HEARTRATE'") | .startTime+.datas' |  read_hex_rec $RECVALUE_OUTDOOR_HEARTRATE $RECCMD_OUTDOOR_HEARTRATE >heartrate-"$LOG_FILE_DATE".log
 
     # filter 6*5 seconds after heartrate above MAX_HEARTRATE and 6*5 seconds before
@@ -183,15 +183,15 @@ filter_heartrate()
         cp heartrate-"$LOG_FILE_DATE".log heartrate-"$LOG_FILE_DATE"-original.log
         jq --slurp --compact-output ".[].heartrate = $OPTION_FORCE_HEARTRATE_VALUE | .[]" "heartrate-$LOG_FILE_DATE-original.log" > "heartrate-$LOG_FILE_DATE.log"
     fi
-    cleanup grep-heartrate-"$LOG_FILE_DATE".log heartrate-"$LOG_FILE_DATE".bin heartrate-"$LOG_FILE_DATE"-original.log
+    cleanup grep-heartrate-"$LOG_FILE_DATE".log heartrate-"$LOG_FILE_DATE".hex heartrate-"$LOG_FILE_DATE"-original.log
 }
 
 filter_heartrate_strava()
 # seems like all heartrate data is available in dataList, so we can just grep that
 {
-    cleanup heartrate-"$LOG_FILE_DATE".bin
+    cleanup heartrate-"$LOG_FILE_DATE".hex
     grep -o 'dataList:.*' "$log_file" |  tee grep-heartrate-"$LOG_FILE_DATE".log | cut -b10- | jq -s '.[][] | { timestamp : .timeStamp | tonumber, heartrate: .hr }' >heartrate-"$LOG_FILE_DATE".log
-    cleanup grep-heartrate-"$LOG_FILE_DATE".log heartrate-"$LOG_FILE_DATE".bin
+    cleanup grep-heartrate-"$LOG_FILE_DATE".log heartrate-"$LOG_FILE_DATE".hex
 }
 
 
@@ -201,9 +201,9 @@ filter_gps()
     # it is safer to read one line, than grepping multiple records/lines
     # also this is INFO debug level, which may not be turned off
   
-    cleanup  gps-"$LOG_FILE_DATE".bin
+    cleanup  gps-"$LOG_FILE_DATE".hex
     grep ".*l-GpsData" "$log_file" |  tee grep-gpsdata-"$LOG_FILE_DATE".log | cut -b48- | fold --width=$((24*16)) | read_hex_rec $RECVALUE_GPS $RECCMD_GPS >gps-"$LOG_FILE_DATE".log
-    cleanup grep-gpsdata-"$LOG_FILE_DATE".log gps-"$LOG_FILE_DATE".bin
+    cleanup grep-gpsdata-"$LOG_FILE_DATE".log gps-"$LOG_FILE_DATE".hex
 }
 
 create_hoydedata_gpx()
