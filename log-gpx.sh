@@ -420,7 +420,7 @@ while [ $# -gt 0 ]; do
         -h|--help)
             cat <<EOF
 Usage: $0 [log_file]
-Converts hex data from cmf watch app log file to gpx file
+Converts hex heartrate and gps data from cmf watch app log file to gpx file
 Options:
    --pull                       pull watchband log files from mobile phone which contains the hex data for heartrate and gps
    --file [log_file]            specify log file to process
@@ -430,6 +430,7 @@ Options:
    --no-heartrate               no heartrate data
    --avg-over-max-hr            set 6 measurements after and before hr over max hr to average
    --force-heartrate [value]    force heartrate to value
+   --help                       this information
 EOF
             exit 0
             ;;
