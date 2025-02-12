@@ -17,9 +17,9 @@ Converts hex heartrate and GPS data from CMF watch app log file to GPX file.
 
 ## Installation
 
-Enable usb debugging/developer mode Android
-Sync cmf watch app with watch
-Connect usb cable to PC
+- Enable USB debugging/developer mode on Android
+- Sync CMF Watch app with the watch
+- Connect USB cable to PC
 
 ## Example
 
