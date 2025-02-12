@@ -170,13 +170,13 @@ filter_heartrate()
             reduce .[] as $item (
             {skip: 0, result: []};
                 if .skip > 0 then 
-                    .skip -= 1 | .result += [$item | .heartrate = '"$average_heartrate"']
+                    .skip -= 1 | .result += [$item | .heartrate = '"$average_heartrate"'] 
                 elif $item.heartrate > '"$MAX_HEARTRATE"' then 
+                    ("Pass 1 over max hr "+( $item | tostring) | debug)  as $_ |  # Print $item to stderr
                     .result += [$item] | .skip = '"$avg_measurement_over_max_hr"'
                 else 
                     .result += [$item]
-                end
-                ) | .result | reverse |
+                end) | .result | reverse |
             
             reduce .[] as $item (
             {skip: 0, result: []};
@@ -186,8 +186,7 @@ filter_heartrate()
                     .skip = '"$avg_measurement_over_max_hr"' | .result += [$item | .heartrate = '"$average_heartrate"']
                 else 
                     .result += [$item]
-                end)
-             | .result | reverse | .[]' "heartrate-$LOG_FILE_DATE-original.log" > "heartrate-$LOG_FILE_DATE.log"
+                end) | .result | reverse | .[]' "heartrate-$LOG_FILE_DATE-original.log" > "heartrate-$LOG_FILE_DATE.log"
     fi
     if [ -n "$OPTION_FORCE_HEARTRATE" ]; then
         echo "Forcing heartrate to $OPTION_FORCE_HEARTRATE_VALUE"
