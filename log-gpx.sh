@@ -167,16 +167,27 @@ filter_heartrate()
         average_heartrate=$(jq --slurp 'map(.heartrate) | (add / length) | round' heartrate-"$LOG_FILE_DATE"-original.log )
         echo "Setting $avg_measurement_over_max_hr measurements after and before heartrate over $MAX_HEARTRATE to average $average_heartrate"
         jq --slurp --compact-output '
-            reduce .[] as $item ({skip: 0, result: []};
-            if .skip > 0 then .skip -= 1 | .result += [$item | .heartrate = '"$average_heartrate"']
-            elif $item.heartrate > '"$MAX_HEARTRATE"' then .result += [$item] | .skip = '"$avg_measurement_over_max_hr"'
-            else .result += [$item] end
-            ) | .result | reverse |
-            reduce .[] as $item ({skip: 0, result: []};
-            if .skip > 0 then .skip -= 1 | .result += [$item | .heartrate = '"$average_heartrate"']
-            elif $item.heartrate > '"$MAX_HEARTRATE"' then .skip = '"$avg_measurement_over_max_hr"'
-            else .result += [$item] end
-            ) | .result | reverse | .[]' "heartrate-$LOG_FILE_DATE-original.log" > "heartrate-$LOG_FILE_DATE.log"
+            reduce .[] as $item (
+            {skip: 0, result: []};
+                if .skip > 0 then 
+                    .skip -= 1 | .result += [$item | .heartrate = '"$average_heartrate"']
+                elif $item.heartrate > '"$MAX_HEARTRATE"' then 
+                    .result += [$item] | .skip = '"$avg_measurement_over_max_hr"'
+                else 
+                    .result += [$item]
+                end
+                ) | .result | reverse |
+            
+            reduce .[] as $item (
+            {skip: 0, result: []};
+                if .skip > 0 then 
+                    .skip -= 1 | .result += [$item | .heartrate = '"$average_heartrate"']
+                elif $item.heartrate > '"$MAX_HEARTRATE"' then
+                    .skip = '"$avg_measurement_over_max_hr"' | .result += [$item | .heartrate = '"$average_heartrate"']
+                else 
+                    .result += [$item]
+                end)
+             | .result | reverse | .[]' "heartrate-$LOG_FILE_DATE-original.log" > "heartrate-$LOG_FILE_DATE.log"
     fi
     if [ -n "$OPTION_FORCE_HEARTRATE" ]; then
         echo "Forcing heartrate to $OPTION_FORCE_HEARTRATE_VALUE"
