@@ -2,7 +2,6 @@
 GPX_CREATOR=$(basename "$0")
 MAX_HEARTRATE=177
 
-
 # log file in ./files/watchband directory on device
 # requires: data must be downloaded from the watchband by the app
 # and the log file must be available in the ./files/watchband directory
@@ -406,10 +405,12 @@ parse_sportmode_times()
 printf "%s Testet only on CMF Watch Pro 2 Model D398 firmware 1.0.070 and Android CMF Watch App 3.4.3 (with debug/logging enabled), adb required for pulling log files from mobile\n" "$GPX_CREATOR"
 
 #dont mess up git source directory with data
-if [ "$(pwd)" = "/home/henning/github/cmf" ]; then
-    [ ! -d "data" ] && mkdir data && mkdir data/files/watchband
+if [ -e ".git" ]; then 
+    if [ ! -d "data" ]; then
+        mkdir --verbose data data/files/watchband
+    fi
     # shellcheck disable=SC2164
-    cd data
+    cd data && echo "Running from git directory, changed to $(pwd)"
 fi
 
 # process options
@@ -481,8 +482,10 @@ fi
 
 echo "Processing log file: $log_file cwd: $(pwd)"
 
-nothing_watch=$(grep -o  -m 1 "{.*\"isHistoryBind\".*" "$log_file" | jq -r '.data[0].companyName+" "+.data[0].nickname +" "+.data[0].typeName')
-echo "$nothing_watch"
+nothing_watch=$(grep --only-matching --max-count=1 "{\"deviceId\".*\"isConnect\".*}" "$log_file" | jq --raw-output '.companyName+" "+.nickname+" "+.typeName')
+if [ -n "$nothing_watch" ]; then 
+    echo "$nothing_watch"
+fi
 
 # find start and end times of gps activity
 # it seems that even for multiple acitivities all gps data is in one file, this is also the case for heartrate data
