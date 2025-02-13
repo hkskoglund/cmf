@@ -395,7 +395,7 @@ parse_sportmode_times()
         eval SPORTMODE_SPORT_TYPE_$SPORTMODE_LINE_COUNTER="$sport_type"
         eval SPORTMODE_START_TIME_$SPORTMODE_LINE_COUNTER="$start_time"
         eval SPORTMODE_STOP_TIME_$SPORTMODE_LINE_COUNTER="$stop_time"
-        echo "sport_type: $sport_type $start_time: $start_time $(print_utc_time "$start_time") stop_time: $stop_time $(print_utc_time "$stop_time")" >&2
+        echo "sport_type: $sport_type start_time: $start_time $(print_utc_time "$start_time") stop_time: $stop_time $(print_utc_time "$stop_time")" >&2
        
     done <sportmode-times.log
     IFS="$OIFS"
