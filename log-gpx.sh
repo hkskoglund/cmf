@@ -402,7 +402,7 @@ parse_sportmode_times()
     cleanup sportmode-times.log
 }
 
-printf "%s Testet only on CMF Watch Pro 2 Model D398 firmware 1.0.070 and Android CMF Watch App 3.4.3 (with debug/logging enabled), adb required for pulling log files from mobile\n" "$GPX_CREATOR"
+printf "%s Tested CMF Watch Pro 2 Model D398 fw. 1.0.070 and Android CMF Watch App 3.4.3 (with debug/logging enabled), adb required for pulling log files from mobile\n" "$GPX_CREATOR"
 
 #dont mess up git source directory with data
 if [ -e ".git" ]; then 
