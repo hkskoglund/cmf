@@ -31,8 +31,7 @@ log-gpx.sh tested only on CMF Watch Pro 2 Model D398 firmware 1.0.070 and Androi
 Processing log file: /home/henning/github/cmf/data/watchband/log_20250211.txt cwd: /home/henning/github/cmf/data
 Nothing CMF WATCH_05 D398
 Found 1 GPS activities in log file
-Setting 6 measurements after and before heartrate over 168 to average 124
-sport_type: 2 1739270318: 1739270318 2025-02-11T10:38:38Z stop_time: 1739273781 2025-02-11T11:36:21Z
+sport_type: 2 start_time: 1739270318 2025-02-11T10:38:38Z stop_time: 1739273781 2025-02-11T11:36:21Z
 Created track-20250211_103838.gpx
 Fetching elevation data from https://ws.geonorge.no/hoydedata/v1/punkt
 Created track-ele-20250211_103838.gpx
