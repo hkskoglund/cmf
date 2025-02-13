@@ -171,7 +171,7 @@ filter_heartrate()
                 if .skip > 0 then 
                     .skip -= 1 | .result += [$item | .heartrate = '"$average_heartrate"'] 
                 elif $item.heartrate > '"$MAX_HEARTRATE"' then 
-                    ("Pass 1 over max hr "+( $item | tostring) | debug)  as $_ |  # Print $item to stderr
+                    ("Forward pass found over max hr "+( $item | tostring) | debug)  as $_ |  # Print $item to stderr
                     .result += [$item] | .skip = '"$avg_measurement_over_max_hr"'
                 else 
                     .result += [$item]
