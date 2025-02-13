@@ -23,20 +23,17 @@ Converts hex heartrate and GPS data from CMF watch app log file to GPX file.
 
 ## Example
 
- ./log-gpx.sh  --pull --file ./watchband/log_20250211.txt
+ ./log-gpx.sh  --pull --file ./watchband/log_20250212.txt
 
 ## Output
 ```
 log-gpx.sh Testet only on CMF Watch Pro 2 Model D398 firmware 1.0.070 and Android CMF Watch App 3.4.3 (with debug/logging enabled), adb required for pulling log files from mobile
 Running from git directory, changed to /home/henning/github/cmf/data
+Pulling log files from /storage/emulated/0/Android/data/com.nothing.cmf.watch/files/watchband/ 
+/storage/emulated/0/Android/data/com.nothing.cmf.watch/files/watchband/: 6 files pulled, 0 skipped. 33.9 MB/s (50428420 bytes in 1.421s)
 Processing log file: /home/henning/github/cmf/data/watchband/log_20250212.txt cwd: /home/henning/github/cmf/data
 Nothing CMF WATCH_05 D398
 Found 1 GPS activities in log file
-Setting 6 measurements after and before heartrate over 166 to average 127
-["DEBUG:","Forward pass found over max hr {\"timestamp\":1739353147,\"heartrate\":169}"]
-["DEBUG:","Forward pass found over max hr {\"timestamp\":1739353182,\"heartrate\":169}"]
 sport_type: 2 start_time: 1739353024 2025-02-12T09:37:04Z stop_time: 1739356642 2025-02-12T10:37:22Z
 Created track-20250212_093704.gpx
-Fetching elevation data from https://ws.geonorge.no/hoydedata/v1/punkt
-Created track-ele-20250212_093704.gpx
 ```
