@@ -567,11 +567,12 @@ EOF
             OUTPUT_FILE=${OUTPUT_FILE:-"/dev/stdout"}
             # group_by group by timestamp, only select first element in group, provided by gemini AI 2.0 Flash
             filter_heartrate_cmd_0001 | jq -s 'group_by(.timestamp)
-             | map(.[0] | 
+             | map( 
     {
-      timestamp: .timestamp,
-      heartrate: .heartrate,
-      timestamp_date: (.timestamp | strftime("%Y-%m-%dT%H:%M:%SZ")) # UTC date format
+      timestamp: .[0].timestamp,
+      heartrate: .[0].heartrate
+      heartrates: [.[].heartrate], # Array of all heartrates for this timestamp, shoule be the same hr for same timestamp
+      timestamp_date: (.[0].timestamp | strftime("%Y-%m-%dT%H:%M:%SZ")) # UTC date format
     }
   )
 ' >"$OUTPUT_FILE"
