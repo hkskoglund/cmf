@@ -499,7 +499,7 @@ Options:
    --pull                       pull watchband log files from mobile phone which contains the hex data for heartrate and gps
    --file [log_file]            specify log file to process
    --gpx                        create gpx from hr and gps data
-   --filter-hr                  get measured hr during the day in json       
+   --hr                         get measured hr during the day in json       
    --save-temps                 save temporary files for debugging
    --hoydedata                  get elevation data from ws.geonorge.no/hoydedata/v1/punkt and create track-ele.gpx
    --max-hr                     maximum heartrate value, default 177
@@ -558,7 +558,7 @@ EOF
            echo "$2" | read_hex_rec $RECVALUE_HEARTRATE $RECCMD_HEARTRATE
            shift
            ;;
-        --filter-hr)
+        --hr)
             check_log_file_specified
             # group_by group by timestamp, only select first element in group, provided by gemini AI 2.0 Flash
             filter_heartrate_cmd_0001 | jq -s 'group_by(.timestamp) | map(.[0] | 
