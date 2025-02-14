@@ -570,7 +570,7 @@ EOF
              | map( 
     {
       timestamp: .[0].timestamp,
-      heartrate: .[0].heartrate
+      heartrate: .[-1].heartrate,   # last heart rate 
       heartrates: [.[].heartrate], # Array of all heartrates for this timestamp, shoule be the same hr for same timestamp
       timestamp_date: (.[0].timestamp | strftime("%Y-%m-%dT%H:%M:%SZ")) # UTC date format
     }
