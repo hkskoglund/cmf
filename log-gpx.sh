@@ -24,6 +24,9 @@ RECCMD_GPS="a05a"
 RECPAYLOAD_GPS="gpsplayload"
 RECBYTECUTPOS_GPS=54
 
+RECVALUE_HEARTRATE="0053"
+RECCMD_HEARTRATE="0001"
+
 cleanup() {
     [ -z "$SAVE_TEMPS" ] && rm -f "$@"
 }
@@ -61,81 +64,76 @@ convert_hex_to_string()
     unset _hex_string
 }
 
-read_hex_rec()
-# debug info should be written to stderr
-{
-    recvalue="$1"
-    reccmd="$2"
-
-    #echo "reccmd: $reccmd recvalue: $recvalue" >&2
+read_hex_rec() {
+    RECVALUE="$1"
+    RECCMD="$2"
 
     while read -r line; do
-        #echo "read: $line" >&2
-        #shellcheck disable=SC2046
+        # shellcheck disable=SC2046
         set --  $(echo "$line" | fold --width=2 | paste --serial --delimiter=' ')
 
-        # convert hex lines into a binary file
-        if [ "$reccmd" = "$RECCMD_OUTDOOR_HEARTRATE" ] && [ "$recvalue" = "$RECVALUE_OUTDOOR_HEARTRATE" ]; then
-            convert_hex_to_string "$@" >>heartrate-"$LOG_FILE_DATE".hex
-        elif [ "$reccmd" = "$RECCMD_GPS" ] && [ "$recvalue" = "$RECVALUE_GPS" ]; then
+        if [ "$RECCMD" = "$RECCMD_OUTDOOR_HEARTRATE" ] && [ "$RECVALUE" = "$RECVALUE_OUTDOOR_HEARTRATE" ]; then
+            convert_hex_to_string "$@" >>"heartrate-$RECCMD-$RECVALUE-$LOG_FILE_DATE".hex
+            process_heartrate "$@"
+        elif [ "$RECCMD" = "$RECCMD_HEARTRATE" ] && [ "$RECVALUE" = "$RECVALUE_HEARTRATE" ]; then
+            convert_hex_to_string "$@" >>"heartrate-$RECCMD-$RECVALUE-$LOG_FILE_DATE".hex
+            process_heartrate "$@"
+        elif [ "$RECCMD" = "$RECCMD_GPS" ] && [ "$RECVALUE" = "$RECVALUE_GPS" ]; then
             convert_hex_to_string "$@" >>gps-"$LOG_FILE_DATE".hex
+            process_gps "$@"
         fi
+    done
+}
 
-        while [ $# -ge 8 ]; do
+process_heartrate() {
+   
+    while [ $# -ge 8 ]; do
+        timestamp=$((0x"$4$3$2$1"))
+        #echo >&2 "timestamp: $timestamp hex: 0x$4$3$2$1"
+        shift 4
+        heartrate=$((0x"$4$3$2$1"))
+        shift 4
+        echo "{ \"timestamp\": $timestamp, \"heartrate\" : $heartrate }"
+    done
+}
 
-            if [ "$reccmd" = "$RECCMD_OUTDOOR_HEARTRATE" ] && [ "$recvalue" = "$RECVALUE_OUTDOOR_HEARTRATE" ]; then
-                #echo read timestamp: "$1 $2 $3 $4" >&2
-                timestamp=$((0x"$4$3$2$1"))
-                shift 4
-                #echo read heartrate: "$1 $2 $3 $4"
-                heartrate=$((0x"$4$3$2$1"))
-                shift 4
-                echo "{ \"timestamp\": $timestamp, \"heartrate\" : $heartrate }" 
-            elif [ "$reccmd" = "$RECCMD_GPS" ] && [ "$recvalue" = "$RECVALUE_GPS" ]; then
-                # gps track
-                #echo gps read timestamp: "$1 $2 $3 $4"
-                timestamp=$((0x"$4$3$2$1"))
-                shift 4
-                #echo "gps read lon: $1 $2 $3 $4"
-                lon=$((0x"$4$3$2$1"))
-                get_signed_number "$lon"
-                lon=$SIGNED_NUMBER
-                lon_float_int=$(( "$lon" / 10000000 ))
-                lon_float_frac=$(( "$lon" % 10000000 ))
-                # printf "%07d" suggested by gemini AI, otherwise losing leading zeros which is important
-                lon_float="$lon_float_int.$(printf "%07d" $lon_float_frac)"
-                #lon_float=$(echo "scale=7; $lon / 10000000" | bc)
-                shift 4
-                #echo "gps read lat: $1 $2 $3 $4"
-                lat=$((0x"$4$3$2$1"))
-                get_signed_number "$lat"
-                lat=$SIGNED_NUMBER
-                lat_float_int=$(( "$lat" / 10000000 ))
-                lat_float_frac=$(( "$lat" % 10000000 ))        
-                lat_float="$lat_float_int.$(printf "%07d" $lat_float_frac)"
-                #lat_float=$(echo "scale=7; $lat / 10000000" | bc)
-                shift 4
-                #echo "$lat $lon $lat_float $lon_float" >&2
-                echo "{ \"timestamp\": $timestamp, \"lat\" : $lat_float, \"lon\" : $lon_float }" 
+process_gps() {
 
-            fi
-        
-        done
-
-         #echo "remaining checksum?: $# $*" >&2
-
+    while [ $# -ge 12 ]; do
+        timestamp=$((0x"$4$3$2$1"))
+        shift 4
+        lon=$((0x"$4$3$2$1"))
+        get_signed_number "$lon"
+        lon=$SIGNED_NUMBER
+        lon_float_int=$(( "$lon" / 10000000 ))
+        lon_float_frac=$(( "$lon" % 10000000 ))
+        lon_float="$lon_float_int.$(printf "%07d" $lon_float_frac)"
+        shift 4
+        lat=$((0x"$4$3$2$1"))
+        get_signed_number "$lat"
+        lat=$SIGNED_NUMBER
+        lat_float_int=$(( "$lat" / 10000000 ))
+        lat_float_frac=$(( "$lat" % 10000000 ))
+        lat_float="$lat_float_int.$(printf "%07d" $lat_float_frac)"
+        shift 4
+        echo "{ \"timestamp\": $timestamp, \"lat\" : $lat_float, \"lon\" : $lon_float }"
     done
 }
 
 filter_log()
 {
-    recvalue="$1"
-    reccmd="$2"
+    RECVALUE="$1"
+    RECCMD="$2"
     recpayload="$3"
     rec_bytecutpos="$4"
 
-    grep -A5 "h0-RecValue：$recvalue RecCmd:$reccmd" "$log_file" | tee grep-"$recpayload".log | grep -i "$recpayload" | cut --bytes="$rec_bytecutpos"-
-    cleanup grep-"$recpayload".log
+    grep -A5 "h0-RecValue：$RECVALUE RecCmd:$RECCMD" "$log_file" | tee grep-"$RECVALUE-$RECCMD-$recpayload".log | grep -i "$recpayload" | cut --bytes="$rec_bytecutpos"-
+    cleanup grep-"$RECVALUE-$RECCMD-$recpayload".log
+}
+
+filter_heartrate_cmd_0001()
+{
+    filter_log $RECVALUE_HEARTRATE $RECCMD_HEARTRATE $RECPAYLOAD_HEARTRATE $RECBYTECUTPOS_HEARTRATE | read_hex_rec $RECVALUE_HEARTRATE $RECCMD_HEARTRATE
 }
 
 filter_heartrate_rec()
@@ -402,90 +400,16 @@ parse_sportmode_times()
     cleanup sportmode-times.log
 }
 
-printf "%s Tested CMF Watch Pro 2 Model D398 fw. 1.0.070 and Android CMF Watch App 3.4.3 (with debug/logging enabled), adb required for pulling log files from mobile\n" "$GPX_CREATOR"
-
-#dont mess up git source directory with data
-if [ -e ".git" ]; then 
-    if [ ! -d "data" ]; then
-        mkdir --verbose data data/files/watchband
+check_log_file_specified() {
+    if [ -z "$log_file" ]; then
+        echo "No log file specified. Use --file [log_file] to specify the log file."
+        exit 1
     fi
-    # shellcheck disable=SC2164
-    cd data && echo "Running from git directory, changed to $(pwd)"
-fi
+}
 
-# process options
-
-while [ $# -gt 0 ]; do
-    case "$1" in
-        -h|--help)
-            cat <<EOF
-Usage: $0 [log_file]
-Converts hex heartrate and gps data from cmf watch app log file to gpx file
-Options:
-   --pull                       pull watchband log files from mobile phone which contains the hex data for heartrate and gps
-   --file [log_file]            specify log file to process
-   --save-temps                 save temporary files for debugging
-   --hoydedata                  get elevation data from ws.geonorge.no/hoydedata/v1/punkt and create track-ele.gpx
-   --max-hr                     maximum heartrate value, default 177
-   --no-heartrate               no heartrate data
-   --avg-over-max-hr            set 6 measurements after and before hr over max hr to average
-   --force-heartrate [value]    force heartrate to value
-   --help                       this information
-EOF
-            exit 0
-            ;;
-        --save-temps)
-            SAVE_TEMPS=true
-            ;;
-        --hoydedata)
-            ELEVATION_CORRECTION=true
-            ;;
-
-        --file)
-            log_file=$(realpath "$2")
-            shift
-            ;;
-        --pull)
-            pull_watchband
-            ;;
-        --max-hr)
-            MAX_HEARTRATE="$2"
-            shift
-            ;;
-        --no-heartrate)
-            OPTION_NO_HEARTRATE=true
-            ;;
-        --avg-over-max-hr)
-            OPTION_AVG_OVER_MAX_HR=true
-            ;;
-        --force-heartrate)
-            OPTION_FORCE_HEARTRATE=true
-            OPTION_FORCE_HEARTRATE_VALUE="$2"
-            shift
-            ;;
-        *) echo "Unknown option: $1" >&2
-            exit 1
-            ;;
-    esac
-    shift
-done
-
-if [ -z "$log_file" ]; then
-    echo "No log file specified. Use --file [log_file] to specify the log file."
-    exit 1
-fi
-
-if [ ! -f "$log_file" ]; then
-    echo "Log file $log_file does not exist. If needed, connect mobile phone/usb debugging and use --pull to fetch log files produced by the cmf watch app"
-    exit 1
-fi
-
-echo "Processing log file: $log_file cwd: $(pwd)"
-
-nothing_watch=$(grep --only-matching --max-count=1 "{\"deviceId\".*\"isConnect\".*}" "$log_file" | jq --raw-output '.companyName+" "+.nickname+" "+.typeName')
-if [ -n "$nothing_watch" ]; then 
-    echo "$nothing_watch"
-fi
+filter_activity()
+{
+    check_log_file_specified
 
 # find start and end times of gps activity
 # it seems that even for multiple acitivities all gps data is in one file, this is also the case for heartrate data
@@ -549,4 +473,104 @@ while [ $SPORTMODE_LINE_COUNTER -lt "$SPORTMODE_LINE_COUNTER_MAX" ]; do
 done
 
 cleanup heartrate-"$LOG_FILE_DATE".log gps-"$LOG_FILE_DATE".log
+
+}
+
+printf "%s Tested CMF Watch Pro 2 Model D398 fw. 1.0.070 and Android CMF Watch App 3.4.3 (with debug/logging enabled), adb required for pulling log files from mobile\n" "$GPX_CREATOR"
+
+#dont mess up git source directory with data
+if [ -e ".git" ]; then 
+    if [ ! -d "data" ]; then
+        mkdir --verbose data data/files/watchband
+    fi
+    # shellcheck disable=SC2164
+    cd data && echo "Running from git directory, changed to $(pwd)"
+fi
+
+# process options
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -h|--help)
+            cat <<EOF
+Usage: $0 [log_file]
+Converts hex heartrate and gps data from cmf watch app log file to gpx file
+Options:
+   --pull                       pull watchband log files from mobile phone which contains the hex data for heartrate and gps
+   --file [log_file]            specify log file to process
+   --save-temps                 save temporary files for debugging
+   --hoydedata                  get elevation data from ws.geonorge.no/hoydedata/v1/punkt and create track-ele.gpx
+   --max-hr                     maximum heartrate value, default 177
+   --no-heartrate               no heartrate data
+   --avg-over-max-hr            set 6 measurements after and before hr over max hr to average
+   --force-heartrate [value]    force heartrate to value
+   --help                       this information
+EOF
+            exit 0
+            ;;
+        --save-temps)
+            SAVE_TEMPS=true
+            ;;
+        --hoydedata)
+            ELEVATION_CORRECTION=true
+            ;;
+
+        --file)
+            log_file=$(realpath "$2")
+            if [ ! -f "$log_file" ]; then
+                echo "Log file $log_file does not exist. If needed, connect mobile phone/usb debugging and use --pull to fetch log files produced by the cmf watch app"
+                exit 1
+            fi
+
+            echo "Processing log file: $log_file cwd: $(pwd)"
+
+            nothing_watch=$(grep --only-matching --max-count=1 "{\"deviceId\".*\"isConnect\".*}" "$log_file" | jq --raw-output '.companyName+" "+.nickname+" "+.typeName')
+            if [ -n "$nothing_watch" ]; then 
+                echo "$nothing_watch"
+            fi
+            shift
+            ;;
+        --pull)
+            pull_watchband
+            ;;
+        --max-hr)
+            MAX_HEARTRATE="$2"
+            shift
+            ;;
+        --no-heartrate)
+            OPTION_NO_HEARTRATE=true
+            ;;
+        --avg-over-max-hr)
+            OPTION_AVG_OVER_MAX_HR=true
+            ;;
+        --force-heartrate)
+            OPTION_FORCE_HEARTRATE=true
+            OPTION_FORCE_HEARTRATE_VALUE="$2"
+            shift
+            ;;
+        --filter-activity)
+            filter_activity
+            ;;            
+        --parse-hr-string)
+           echo "$2" | read_hex_rec $RECVALUE_HEARTRATE $RECCMD_HEARTRATE
+           shift
+           ;;
+        --filter-hr)
+            check_log_file_specified
+            # group_by group by timestamp, only select first element in group, provided by gemini AI 2.0 Flash
+            filter_heartrate_cmd_0001 | jq -s 'group_by(.timestamp) | map(.[0] | 
+    {
+      timestamp: .timestamp,
+      heartrate: .heartrate,
+      timestamp_date: (.timestamp | strftime("%Y-%m-%dT%H:%M:%SZ")) # UTC date format
+    }
+  )
+'
+           ;;
+        *) echo "Unknown option: $1" >&2
+            exit 1
+            ;;
+    esac
+    shift
+done
  
