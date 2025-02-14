@@ -558,8 +558,13 @@ EOF
            echo "$2" | read_hex_rec $RECVALUE_HEARTRATE $RECCMD_HEARTRATE
            shift
            ;;
+        --output)
+            OUTPUT_FILE="$2"
+            shift
+            ;;
         --hr)
             check_log_file_specified
+            OUTPUT_FILE=${OUTPUT_FILE:-"/dev/stdout"}
             # group_by group by timestamp, only select first element in group, provided by gemini AI 2.0 Flash
             filter_heartrate_cmd_0001 | jq -s 'group_by(.timestamp) | map(.[0] | 
     {
@@ -568,7 +573,7 @@ EOF
       timestamp_date: (.timestamp | strftime("%Y-%m-%dT%H:%M:%SZ")) # UTC date format
     }
   )
-'
+' >"$OUTPUT_FILE"
            ;;
         *) echo "Unknown option: $1" >&2
             exit 1
