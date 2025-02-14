@@ -73,10 +73,10 @@ read_hex_rec() {
         set --  $(echo "$line" | fold --width=2 | paste --serial --delimiter=' ')
 
         if [ "$RECCMD" = "$RECCMD_OUTDOOR_HEARTRATE" ] && [ "$RECVALUE" = "$RECVALUE_OUTDOOR_HEARTRATE" ]; then
-            convert_hex_to_string "$@" >>"heartrate-$RECCMD-$RECVALUE-$LOG_FILE_DATE".hex
+            convert_hex_to_string "$@" >>"heartrate-$RECVALUE-$RECCMD-$LOG_FILE_DATE".hex
             process_heartrate "$@"
         elif [ "$RECCMD" = "$RECCMD_HEARTRATE" ] && [ "$RECVALUE" = "$RECVALUE_HEARTRATE" ]; then
-            convert_hex_to_string "$@" >>"heartrate-$RECCMD-$RECVALUE-$LOG_FILE_DATE".hex
+            convert_hex_to_string "$@" >>"heartrate-$RECVALUE-$RECCMD-$LOG_FILE_DATE".hex
             process_heartrate "$@"
         elif [ "$RECCMD" = "$RECCMD_GPS" ] && [ "$RECVALUE" = "$RECVALUE_GPS" ]; then
             convert_hex_to_string "$@" >>gps-"$LOG_FILE_DATE".hex
@@ -89,7 +89,7 @@ process_heartrate() {
    
     while [ $# -ge 8 ]; do
         timestamp=$((0x"$4$3$2$1"))
-        #echo >&2 "timestamp: $timestamp hex: 0x$4$3$2$1"
+        # debug echo >&2 "timestamp: $timestamp hex: 0x$4$3$2$1"
         shift 4
         heartrate=$((0x"$4$3$2$1"))
         shift 4
@@ -566,7 +566,8 @@ EOF
             check_log_file_specified
             OUTPUT_FILE=${OUTPUT_FILE:-"/dev/stdout"}
             # group_by group by timestamp, only select first element in group, provided by gemini AI 2.0 Flash
-            filter_heartrate_cmd_0001 | jq -s 'group_by(.timestamp) | map(.[0] | 
+            filter_heartrate_cmd_0001 | jq -s 'group_by(.timestamp)
+             | map(.[0] | 
     {
       timestamp: .timestamp,
       heartrate: .heartrate,
