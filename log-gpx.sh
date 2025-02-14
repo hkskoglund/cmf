@@ -498,12 +498,15 @@ Converts hex heartrate and gps data from cmf watch app log file to gpx file
 Options:
    --pull                       pull watchband log files from mobile phone which contains the hex data for heartrate and gps
    --file [log_file]            specify log file to process
+   --gpx                        create gpx from hr and gps data
+   --filter-hr                  get measured hr during the day in json       
    --save-temps                 save temporary files for debugging
    --hoydedata                  get elevation data from ws.geonorge.no/hoydedata/v1/punkt and create track-ele.gpx
    --max-hr                     maximum heartrate value, default 177
    --no-heartrate               no heartrate data
    --avg-over-max-hr            set 6 measurements after and before hr over max hr to average
    --force-heartrate [value]    force heartrate to value
+   --parse-hr-string            parses hr hex string 
    --help                       this information
 EOF
             exit 0
@@ -548,7 +551,7 @@ EOF
             OPTION_FORCE_HEARTRATE_VALUE="$2"
             shift
             ;;
-        --filter-activity)
+        --gpx)
             filter_activity
             ;;            
         --parse-hr-string)
