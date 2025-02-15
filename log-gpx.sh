@@ -477,6 +477,12 @@ cleanup heartrate-"$LOG_FILE_DATE".log gps-"$LOG_FILE_DATE".log
 
 }
 
+convert_json_hr_to_csv()
+{
+    echo "timestamp,heartrate" > "${OUTPUT_FILE%.json}".csv
+    jq -r '.[] | "\(.timestamp * 1000),\(.heartrate)"' "$OUTPUT_FILE" >> "${OUTPUT_FILE%.json}".csv
+}
+
 filter_hr_exercisedata() {
     grep "WatchDataUpload-getExeciseDatas_start\[{\"abilityId\":\"$RECVALUE_HEARTRATE\"" "$log_file" | cut -b 89- | jq -rs '.[].[] | select(.abilityId=="'$RECVALUE_HEARTRATE'") | .startTime+.datas' | 
     read_hex_rec $RECVALUE_HEARTRATE $RECCMD_HEARTRATE | jq -s 'map({
@@ -484,6 +490,7 @@ filter_hr_exercisedata() {
         timestamp_date: (.timestamp | strftime("%Y-%m-%dT%H:%M:%SZ")), # UTC date format
         heartrate : .heartrate
     })' >"$OUTPUT_FILE"
+    convert_json_hr_to_csv
 }
 
 filter_hr_ble() {
@@ -498,6 +505,7 @@ filter_hr_ble() {
             heartrates: [.[].heartrate] # Array of all heartrates for this timestamp, should be the same hr for same timestamp
         }
     )' >"$OUTPUT_FILE"
+   convert_json_hr_to_csv
 }
 
 printf "%s Tested CMF Watch Pro 2 Model D398 fw. 1.0.070 and Android CMF Watch App 3.4.3 (with debug/logging enabled), adb required for pulling log files from mobile\n" "$GPX_CREATOR"
