@@ -1,6 +1,7 @@
 #!/bin/sh
 GPX_CREATOR=$(basename "$0")
 MAX_HEARTRATE=177
+OUTPUT_FILE=${OUTPUT_FILE:-"/dev/stdout"}
 
 # log file in ./files/watchband directory on device
 # requires: data must be downloaded from the watchband by the app
@@ -476,6 +477,29 @@ cleanup heartrate-"$LOG_FILE_DATE".log gps-"$LOG_FILE_DATE".log
 
 }
 
+filter_hr_exercisedata() {
+    grep "WatchDataUpload-getExeciseDatas_start\[{\"abilityId\":\"$RECVALUE_HEARTRATE\"" "$log_file" | cut -b 89- | jq -rs '.[].[] | select(.abilityId=="'$RECVALUE_HEARTRATE'") | .startTime+.datas' | 
+    read_hex_rec $RECVALUE_HEARTRATE $RECCMD_HEARTRATE | jq -s 'map({
+        timestamp : .timestamp,
+        timestamp_date: (.timestamp | strftime("%Y-%m-%dT%H:%M:%SZ")), # UTC date format
+        heartrate : .heartrate
+    })' >"$OUTPUT_FILE"
+}
+
+filter_hr_ble() {
+     # group_by timestamp, only select first element in group, provided by gemini AI 2.0 Flash
+
+    filter_heartrate_cmd_0001 | jq -s 'group_by(.timestamp)
+    | map( 
+        {
+            timestamp: .[0].timestamp,
+            timestamp_date: (.[0].timestamp | strftime("%Y-%m-%dT%H:%M:%SZ")), # UTC date format
+            heartrate: .[-1].heartrate,   # last heart rate 
+            heartrates: [.[].heartrate] # Array of all heartrates for this timestamp, should be the same hr for same timestamp
+        }
+    )' >"$OUTPUT_FILE"
+}
+
 printf "%s Tested CMF Watch Pro 2 Model D398 fw. 1.0.070 and Android CMF Watch App 3.4.3 (with debug/logging enabled), adb required for pulling log files from mobile\n" "$GPX_CREATOR"
 
 #dont mess up git source directory with data
@@ -499,7 +523,8 @@ Options:
    --pull                       pull watchband log files from mobile phone which contains the hex data for heartrate and gps
    --file [log_file]            specify log file to process
    --gpx                        create gpx from hr and gps data
-   --hr                         get measured hr during the day in json       
+   --hr                         get measured hr during the day in json (from exercisedata JSON)
+   --hr-ble                     get measure hr during the day in json (from ble hex data records)     
    --save-temps                 save temporary files for debugging
    --hoydedata                  get elevation data from ws.geonorge.no/hoydedata/v1/punkt and create track-ele.gpx
    --max-hr                     maximum heartrate value, default 177
@@ -562,21 +587,14 @@ EOF
             OUTPUT_FILE="$2"
             shift
             ;;
+        --hr-ble)
+            check_log_file_specified
+            filter_hr_ble
+            ;;
         --hr)
             check_log_file_specified
-            OUTPUT_FILE=${OUTPUT_FILE:-"/dev/stdout"}
-            # group_by group by timestamp, only select first element in group, provided by gemini AI 2.0 Flash
-            filter_heartrate_cmd_0001 | jq -s 'group_by(.timestamp)
-             | map( 
-    {
-      timestamp: .[0].timestamp,
-      heartrate: .[-1].heartrate,   # last heart rate 
-      heartrates: [.[].heartrate], # Array of all heartrates for this timestamp, shoule be the same hr for same timestamp
-      timestamp_date: (.[0].timestamp | strftime("%Y-%m-%dT%H:%M:%SZ")) # UTC date format
-    }
-  )
-' >"$OUTPUT_FILE"
-           ;;
+            filter_hr_exercisedata
+            ;;
         *) echo "Unknown option: $1" >&2
             exit 1
             ;;
