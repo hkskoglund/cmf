@@ -421,7 +421,7 @@ filter_activity()
 #                               DEBUG t-sportModeValue gpsAbsolutePath:/storage/emulated/0/Android/data/com.nothing.cmf.watch/files/GPS/1738241253_1738242550.txt
 
 # deepseek: paste Using - - means paste will read from standard input twice, effectively combining every two lines into one
-    if ! grep --context=2 't-sportModeValue timeResult.*support gps:01$' "$LOG_FILE" | grep -E "sportType|sportTimes" | paste --delimiters=" " - - >sportmode-times.log; then 
+    if ! grep --context=2 't-sportModeValue timeResult.*support gps:01$' "$LOG_FILE" | grep -E "sportType|sportTimes" | paste --delimiters=" " - - >sportmode-times-"$LOG_DATE".log; then 
         echo "No GPS activities found in log file" >&2
         exit 1
     else

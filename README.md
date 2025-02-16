@@ -1,18 +1,24 @@
 # CMF Watch log to gpx
 
-Converts hex heartrate and GPS data from CMF watch app log file to GPX file.
+Converts heartrate and gps data from cmf watch app log file to gpx
 
 ### Options:
 ```
-    --pull                       Pull watchband log files from mobile phone which contains the hex data for heartrate and GPS.
-    --file [log_file]            Specify log file to process.
-    --save-temps                 Save temporary files for debugging.
-    --hoydedata                  Get elevation data from ws.geonorge.no/hoydedata/v1/punkt and create track-ele.gpx.
-    --max-hr                     Maximum heartrate value, default 177.
-    --no-heartrate               No heartrate data.
-    --avg-over-max-hr            Set 6 measurements after and before HR over max HR to average.
-    --force-heartrate [value]    Force heartrate to value.
-    --help                       Display help information.
+    --pull                       pull watchband log files from mobile phone which contains the hex data for heartrate and gps
+    --dir                        log file directory
+    --date [YYYYMMDD]            specify log date to process
+    --gpx                        create gpx from hr and gps data
+    --hr                         get measured hr during the day in json (from exercisedata JSON)
+    --hr-ble                     get measure hr during the day in json (from ble hex data records)     
+    --save-tmp                   save temporary files for debugging
+    --clean-tmp                  remove all temporary files
+    --hoydedata                  get elevation data from ws.geonorge.no/hoydedata/v1/punkt and create track-ele.gpx
+    --max-hr                     maximum heartrate value, default 177
+    --no-heartrate               no heartrate data
+    --avg-over-max-hr            set 6 measurements after and before hr over max hr to average
+    --force-heartrate [value]    force heartrate to value
+    --parse-hr-string            parses hr hex string 
+    --help                       this information
 ```
 
 ## Installation
@@ -23,7 +29,7 @@ Converts hex heartrate and GPS data from CMF watch app log file to GPX file.
 
 ## Example
 
- ./log-gpx.sh  --pull --file ./watchband/log_20250212.txt
+ ./log-gpx.sh  --pull --date 20250212 --gpx
 
 ## Output
 ```
