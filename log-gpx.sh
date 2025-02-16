@@ -1,7 +1,7 @@
 #!/bin/sh
 GPX_CREATOR=$(basename "$0")
 MAX_HEARTRATE=177
-LOG_DIR=${LOG_DIR:-"."}
+LOG_DIR=${LOG_DIR:-"./watchband"}
 
 # log file in ./files/watchband directory on device
 # requires: data must be downloaded from the watchband by the app
