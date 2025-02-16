@@ -501,16 +501,18 @@ filter_hr_exercisedata() {
 filter_hr_ble() {
      # group_by timestamp, only select first element in group, provided by gemini AI 2.0 Flash
 
-    filter_heartrate_cmd_0001 | jq -s 'group_by(.timestamp)
-    | map( 
-        {
-            timestamp: .[0].timestamp,
-            timestamp_date: (.[0].timestamp | strftime("%Y-%m-%dT%H:%M:%SZ")), # UTC date format
-            heartrate: .[-1].heartrate,   # last heart rate 
-            heartrates: [.[].heartrate] # Array of all heartrates for this timestamp, should be the same hr for same timestamp
-        }
-    )' >"$FILE_HR"
-   convert_json_hr_to_csv
+    if filter_heartrate_cmd_0001 | jq -s 'group_by(.timestamp)
+        | map( 
+            {
+                timestamp: .[0].timestamp,
+                timestamp_date: (.[0].timestamp | strftime("%Y-%m-%dT%H:%M:%SZ")), # UTC date format
+                heartrate: .[-1].heartrate,   # last heart rate 
+                heartrates: [.[].heartrate] # Array of all heartrates for this timestamp, should be the same hr for same timestamp
+            }
+        )' >"$FILE_HR"; then 
+            echo "Created $FILE_HR"
+    fi
+    convert_json_hr_to_csv
 }
 
 printf "%s Tested CMF Watch Pro 2 Model D398 fw. 1.0.070 and Android CMF Watch App 3.4.3 (with debug/logging enabled), adb required for pulling log files from mobile\n" "$GPX_CREATOR"
