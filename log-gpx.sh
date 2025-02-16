@@ -1,7 +1,7 @@
 #!/bin/sh
 GPX_CREATOR=$(basename "$0")
 MAX_HEARTRATE=177
-OUTPUT_FILE=${OUTPUT_FILE:-"/dev/stdout"}
+LOG_DIR=${LOG_DIR:-"."}
 
 # log file in ./files/watchband directory on device
 # requires: data must be downloaded from the watchband by the app
@@ -128,7 +128,7 @@ filter_log()
     recpayload="$3"
     rec_bytecutpos="$4"
 
-    grep -A5 "h0-RecValue：$RECVALUE RecCmd:$RECCMD" "$log_file" | tee grep-"$RECVALUE-$RECCMD-$recpayload".log | grep -i "$recpayload" | cut --bytes="$rec_bytecutpos"-
+    grep -A5 "h0-RecValue：$RECVALUE RecCmd:$RECCMD" "$LOG_FILE" | tee grep-"$RECVALUE-$RECCMD-$recpayload".log | grep -i "$recpayload" | cut --bytes="$rec_bytecutpos"-
     cleanup grep-"$RECVALUE-$RECCMD-$recpayload".log
 }
 
@@ -155,7 +155,7 @@ filter_heartrate()
     # logfile typo in ExeciseDatas -> ExerciseDatas
    
     cleanup heartrate-"$LOG_FILE_DATE".hex
-    grep '.*WatchDataUpload-getExeciseDatas_start.*"abilityId":"'$RECVALUE_OUTDOOR_HEARTRATE'"' "$log_file" |  tee grep-heartrate-"$LOG_FILE_DATE".log | cut -b89- | jq -sr  '.[][] | select(.abilityId=="'$RECVALUE_OUTDOOR_HEARTRATE'") | .startTime+.datas' |  read_hex_rec $RECVALUE_OUTDOOR_HEARTRATE $RECCMD_OUTDOOR_HEARTRATE >heartrate-"$LOG_FILE_DATE".log
+    grep '.*WatchDataUpload-getExeciseDatas_start.*"abilityId":"'$RECVALUE_OUTDOOR_HEARTRATE'"' "$LOG_FILE" |  tee grep-heartrate-"$LOG_FILE_DATE".log | cut -b89- | jq -sr  '.[][] | select(.abilityId=="'$RECVALUE_OUTDOOR_HEARTRATE'") | .startTime+.datas' |  read_hex_rec $RECVALUE_OUTDOOR_HEARTRATE $RECCMD_OUTDOOR_HEARTRATE >heartrate-"$LOG_FILE_DATE".log
 
     # filter 6*5 seconds after heartrate above MAX_HEARTRATE and 6*5 seconds before
     # this filter was created to remove supurious high heartrate values
@@ -198,7 +198,7 @@ filter_heartrate_strava()
 # seems like all heartrate data is available in dataList, so we can just grep that
 {
     cleanup heartrate-"$LOG_FILE_DATE".hex
-    grep -o 'dataList:.*' "$log_file" |  tee grep-heartrate-"$LOG_FILE_DATE".log | cut -b10- | jq -s '.[][] | { timestamp : .timeStamp | tonumber, heartrate: .hr }' >heartrate-"$LOG_FILE_DATE".log
+    grep -o 'dataList:.*' "$LOG_FILE" |  tee grep-heartrate-"$LOG_FILE_DATE".log | cut -b10- | jq -s '.[][] | { timestamp : .timeStamp | tonumber, heartrate: .hr }' >heartrate-"$LOG_FILE_DATE".log
     cleanup grep-heartrate-"$LOG_FILE_DATE".log heartrate-"$LOG_FILE_DATE".hex
 }
 
@@ -210,7 +210,7 @@ filter_gps()
     # also this is INFO debug level, which may not be turned off
   
     cleanup  gps-"$LOG_FILE_DATE".hex
-    grep ".*l-GpsData" "$log_file" |  tee grep-gpsdata-"$LOG_FILE_DATE".log | cut -b48- | fold --width=$((24*16)) | read_hex_rec $RECVALUE_GPS $RECCMD_GPS >gps-"$LOG_FILE_DATE".log
+    grep ".*l-GpsData" "$LOG_FILE" |  tee grep-gpsdata-"$LOG_FILE_DATE".log | cut -b48- | fold --width=$((24*16)) | read_hex_rec $RECVALUE_GPS $RECCMD_GPS >gps-"$LOG_FILE_DATE".log
     cleanup grep-gpsdata-"$LOG_FILE_DATE".log gps-"$LOG_FILE_DATE".hex
 }
 
@@ -395,15 +395,15 @@ parse_sportmode_times()
         eval SPORTMODE_STOP_TIME_$SPORTMODE_LINE_COUNTER="$stop_time"
         echo "sport_type: $sport_type start_time: $start_time $(print_utc_time "$start_time") stop_time: $stop_time $(print_utc_time "$stop_time")" >&2
        
-    done <sportmode-times.log
+    done <sportmode-times-"$LOG_DATE".log
     IFS="$OIFS"
     SPORTMODE_LINE_COUNTER_MAX=$SPORTMODE_LINE_COUNTER
-    cleanup sportmode-times.log
+    cleanup sportmode-times-"$LOG_DATE".log
 }
 
 check_log_file_specified() {
-    if [ -z "$log_file" ]; then
-        echo "No log file specified. Use --file [log_file] to specify the log file."
+    if [ -z "$LOG_FILE" ]; then
+        echo "No date specified. Use --date [LOG_DATE] in YYYYMMDD format."
         exit 1
     fi
 }
@@ -421,75 +421,80 @@ filter_activity()
 #                               DEBUG t-sportModeValue gpsAbsolutePath:/storage/emulated/0/Android/data/com.nothing.cmf.watch/files/GPS/1738241253_1738242550.txt
 
 # deepseek: paste Using - - means paste will read from standard input twice, effectively combining every two lines into one
-if ! grep --context=2 't-sportModeValue timeResult.*support gps:01$' "$log_file" | grep -E "sportType|sportTimes" | paste --delimiters=" " - - >sportmode-times.log; then 
-    echo "No GPS activities found in log file" >&2
-    exit 1
-else
-  echo "Found $(wc -l <sportmode-times.log) GPS activities in log file"
-fi
-
-# first filter hex data from log file
-# data/watchband/log_20250202.txt
-LOG_FILE_DATE=$(basename "$log_file")
-LOG_FILE_DATE=${LOG_FILE_DATE%.txt}
-LOG_FILE_DATE=${LOG_FILE_DATE#"log_"}
-
-filter_heartrate
-filter_gps
-parse_sportmode_times
-
-SPORTMODE_LINE_COUNTER=0
-while [ $SPORTMODE_LINE_COUNTER -lt "$SPORTMODE_LINE_COUNTER_MAX" ]; do
-    SPORTMODE_LINE_COUNTER=$((SPORTMODE_LINE_COUNTER+1))
-    FILENAME_POSTFIX=$(get_filename_postfix "$SPORTMODE_LINE_COUNTER")
-
-    # filter heartate and gps between start and stop time
-    FILENAME_POSTFIX=$(get_filename_postfix "$SPORTMODE_LINE_COUNTER")
-    start_time=$(eval echo \$SPORTMODE_START_TIME_"$SPORTMODE_LINE_COUNTER")
-    stop_time=$(eval echo \$SPORTMODE_STOP_TIME_"$SPORTMODE_LINE_COUNTER")
-    jq 'select(.timestamp >='"$start_time"' and .timestamp <='"$stop_time"')' heartrate-"$LOG_FILE_DATE".log >heartrate-"$FILENAME_POSTFIX".log
-    jq 'select(.timestamp >='"$start_time"' and .timestamp <='"$stop_time"')' gps-"$LOG_FILE_DATE".log >gps-"$FILENAME_POSTFIX".log
-
-    if [ -n "$OPTION_NO_HEARTRATE" ]; then
-        echo "Skipping heartrate data"
-        rm heartrate-"$FILENAME_POSTFIX".log
-        touch heartrate-"$FILENAME_POSTFIX".log
-    fi
-
-    if merge_hr_gps_gemini; then 
-        create_gpx
-
-        if [ -n "$ELEVATION_CORRECTION" ]; then
-            # device does not provide elevation data, so fetch it from ws.geonorge.no/hoydedata/v1/punkt, and create gpx with elevation
-        if get_elevation_hoydedata; then 
-            create_hoydedata_gpx
-        fi
-        cleanup hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt  hoydedata-response-"$FILENAME_POSTFIX".json hoydedata-response-points-"$FILENAME_POSTFIX".json
-        fi
-
-        cleanup track-hrlatlon-"$FILENAME_POSTFIX".json
+    if ! grep --context=2 't-sportModeValue timeResult.*support gps:01$' "$LOG_FILE" | grep -E "sportType|sportTimes" | paste --delimiters=" " - - >sportmode-times.log; then 
+        echo "No GPS activities found in log file" >&2
+        exit 1
     else
-        echo >&2 "Failed to merge heartrate and gps data exitcode: $?"
+    echo "Found $(wc -l <sportmode-times.log) GPS activities in log file"
     fi
-done
 
-cleanup heartrate-"$LOG_FILE_DATE".log gps-"$LOG_FILE_DATE".log
+    # first filter hex data from log file
+    # data/watchband/log_20250202.txt
+    LOG_FILE_DATE=$(basename "$LOG_FILE")
+    LOG_FILE_DATE=${LOG_FILE_DATE%.txt}
+    LOG_FILE_DATE=${LOG_FILE_DATE#"log_"}
 
+    filter_heartrate
+    filter_gps
+    parse_sportmode_times
+
+    SPORTMODE_LINE_COUNTER=0
+    while [ $SPORTMODE_LINE_COUNTER -lt "$SPORTMODE_LINE_COUNTER_MAX" ]; do
+        SPORTMODE_LINE_COUNTER=$((SPORTMODE_LINE_COUNTER+1))
+        FILENAME_POSTFIX=$(get_filename_postfix "$SPORTMODE_LINE_COUNTER")
+
+        # filter heartate and gps between start and stop time
+        FILENAME_POSTFIX=$(get_filename_postfix "$SPORTMODE_LINE_COUNTER")
+        start_time=$(eval echo \$SPORTMODE_START_TIME_"$SPORTMODE_LINE_COUNTER")
+        stop_time=$(eval echo \$SPORTMODE_STOP_TIME_"$SPORTMODE_LINE_COUNTER")
+        jq 'select(.timestamp >='"$start_time"' and .timestamp <='"$stop_time"')' heartrate-"$LOG_FILE_DATE".log >heartrate-"$FILENAME_POSTFIX".log
+        jq 'select(.timestamp >='"$start_time"' and .timestamp <='"$stop_time"')' gps-"$LOG_FILE_DATE".log >gps-"$FILENAME_POSTFIX".log
+
+        if [ -n "$OPTION_NO_HEARTRATE" ]; then
+            echo "Skipping heartrate data"
+            rm heartrate-"$FILENAME_POSTFIX".log
+            touch heartrate-"$FILENAME_POSTFIX".log
+        fi
+
+        if merge_hr_gps_gemini; then 
+            create_gpx
+
+            if [ -n "$ELEVATION_CORRECTION" ]; then
+                # device does not provide elevation data, so fetch it from ws.geonorge.no/hoydedata/v1/punkt, and create gpx with elevation
+            if get_elevation_hoydedata; then 
+                create_hoydedata_gpx
+            fi
+            cleanup hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt  hoydedata-response-"$FILENAME_POSTFIX".json hoydedata-response-points-"$FILENAME_POSTFIX".json
+            fi
+
+            cleanup track-hrlatlon-"$FILENAME_POSTFIX".json
+        else
+            echo >&2 "Failed to merge heartrate and gps data exitcode: $?"
+        fi
+    done
+
+    cleanup heartrate-"$LOG_FILE_DATE".log gps-"$LOG_FILE_DATE".log
 }
 
 convert_json_hr_to_csv()
 {
-    echo "timestamp,heartrate" > "${OUTPUT_FILE%.json}".csv
-    jq -r '.[] | "\(.timestamp * 1000),\(.heartrate)"' "$OUTPUT_FILE" >> "${OUTPUT_FILE%.json}".csv
+    FILE_HR_CSV="${FILE_HR%.json}".csv
+    echo "timestamp,heartrate" > "$FILE_HR_CSV"
+    if jq -r '.[] | "\(.timestamp * 1000),\(.heartrate)"' "$FILE_HR" >> "$FILE_HR_CSV"; then 
+        echo "Created $FILE_HR_CSV"
+    fi
 }
 
 filter_hr_exercisedata() {
-    grep "WatchDataUpload-getExeciseDatas_start\[{\"abilityId\":\"$RECVALUE_HEARTRATE\"" "$log_file" | cut -b 89- | jq -rs '.[].[] | select(.abilityId=="'$RECVALUE_HEARTRATE'") | .startTime+.datas' | 
-    read_hex_rec $RECVALUE_HEARTRATE $RECCMD_HEARTRATE | jq -s 'map({
+    grep "WatchDataUpload-getExeciseDatas_start\[{\"abilityId\":\"$RECVALUE_HEARTRATE\"" "$LOG_FILE" | cut -b 89- | jq -rs '.[].[] | select(.abilityId=="'$RECVALUE_HEARTRATE'") | .startTime+.datas' | 
+    if read_hex_rec $RECVALUE_HEARTRATE $RECCMD_HEARTRATE | jq -s 'map({
         timestamp : .timestamp,
         timestamp_date: (.timestamp | strftime("%Y-%m-%dT%H:%M:%SZ")), # UTC date format
         heartrate : .heartrate
-    })' >"$OUTPUT_FILE"
+    })' >"$FILE_HR"; then 
+        echo "Created $FILE_HR"
+    fi
+    
     convert_json_hr_to_csv
 }
 
@@ -504,7 +509,7 @@ filter_hr_ble() {
             heartrate: .[-1].heartrate,   # last heart rate 
             heartrates: [.[].heartrate] # Array of all heartrates for this timestamp, should be the same hr for same timestamp
         }
-    )' >"$OUTPUT_FILE"
+    )' >"$FILE_HR"
    convert_json_hr_to_csv
 }
 
@@ -525,15 +530,17 @@ while [ $# -gt 0 ]; do
     case "$1" in
         -h|--help)
             cat <<EOF
-Usage: $0 [log_file]
-Converts hex heartrate and gps data from cmf watch app log file to gpx file
+Usage: $0 --pull --date YYYYMMDD --gpx
+Converts heartrate and gps data from cmf watch app log file to gpx
 Options:
    --pull                       pull watchband log files from mobile phone which contains the hex data for heartrate and gps
-   --file [log_file]            specify log file to process
+   --dir                        log file directory
+   --date [YYYYMMDD]            specify log date to process
    --gpx                        create gpx from hr and gps data
    --hr                         get measured hr during the day in json (from exercisedata JSON)
    --hr-ble                     get measure hr during the day in json (from ble hex data records)     
-   --save-temps                 save temporary files for debugging
+   --save-tmp                   save temporary files for debugging
+   --clean-tmp                  remove all temporary files
    --hoydedata                  get elevation data from ws.geonorge.no/hoydedata/v1/punkt and create track-ele.gpx
    --max-hr                     maximum heartrate value, default 177
    --no-heartrate               no heartrate data
@@ -544,23 +551,31 @@ Options:
 EOF
             exit 0
             ;;
-        --save-temps)
+        --save-tmp)
             SAVE_TEMPS=true
+            ;;
+        --clean-tmp)
+            cleanup track-hrlatlon-*.json track-hrlatlon-grouped-*.json hoydedata-*.json hoydedata-*.txt heartrate-*.log heartrate-*.hex gps-*.hex gps-*.log grep-*.log sportmode-times*.log
             ;;
         --hoydedata)
             ELEVATION_CORRECTION=true
             ;;
+        --dir)
+            LOG_DIR="$2"
+            shift
+            ;;
+        --date)
+            LOG_DATE="$2"
+            LOG_FILE="$LOG_DIR/log_$LOG_DATE.txt"
+            FILE_HR="heartrate-$LOG_DATE.json"
 
-        --file)
-            log_file=$(realpath "$2")
-            if [ ! -f "$log_file" ]; then
-                echo "Log file $log_file does not exist. If needed, connect mobile phone/usb debugging and use --pull to fetch log files produced by the cmf watch app"
+            if [ ! -f "$LOG_FILE" ]; then
+                echo "Log file $LOG_FILE does not exist. Use --pull to fetch log files and --dir to specify directory"
                 exit 1
             fi
 
-            echo "Processing log file: $log_file cwd: $(pwd)"
-
-            nothing_watch=$(grep --only-matching --max-count=1 "{\"deviceId\".*\"isConnect\".*}" "$log_file" | jq --raw-output '.companyName+" "+.nickname+" "+.typeName')
+            echo "Processing log file: $LOG_FILE cwd: $(pwd)"
+            nothing_watch=$(grep --only-matching --max-count=1 "{\"deviceId\".*\"isConnect\".*}" "$LOG_FILE" | jq --raw-output '.companyName+" "+.nickname+" "+.typeName')
             if [ -n "$nothing_watch" ]; then 
                 echo "$nothing_watch"
             fi
@@ -591,10 +606,6 @@ EOF
            echo "$2" | read_hex_rec $RECVALUE_HEARTRATE $RECCMD_HEARTRATE
            shift
            ;;
-        --output)
-            OUTPUT_FILE="$2"
-            shift
-            ;;
         --hr-ble)
             check_log_file_specified
             filter_hr_ble
