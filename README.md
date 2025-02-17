@@ -12,7 +12,7 @@ Converts heartrate and gps data from cmf watch app log file to gpx
     --hr-ble                     get measure hr during the day in json (from ble hex data records)     
     --save-tmp                   save temporary files for debugging
     --clean-tmp                  remove all temporary files
-    --hoydedata                  get elevation data from ws.geonorge.no/hoydedata/v1/punkt and create track-ele.gpx
+    --ele hoydedata              get elevation data from ws.geonorge.no/hoydedata/v1/punkt and create track-ele.gpx
     --max-hr                     maximum heartrate value, default 177
     --no-heartrate               no heartrate data
     --avg-over-max-hr            set 6 measurements after and before hr over max hr to average

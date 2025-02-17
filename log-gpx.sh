@@ -217,10 +217,10 @@ filter_gps()
 create_hoydedata_gpx()
 {
 
-    jq -s '[ .[].punkter.[] ]' hoydedata-response-"$FILENAME_POSTFIX".json >hoydedata-response-points-"$FILENAME_POSTFIX".json
+    jq -s '[ .[].punkter.[] ]' ele-hoydedata-response-"$FILENAME_POSTFIX".json >ele-hoydedata-response-points-"$FILENAME_POSTFIX".json
 
     # with help from chatgpt ai
-    jq -s 'transpose | map(  add| if .z < 0 then .ele = 0 else .ele = .z end | del(.x, .y, .z, .terreng, .datakilde) )'  track-hrlatlon-"$FILENAME_POSTFIX".json hoydedata-response-points-"$FILENAME_POSTFIX".json >track-hrlatlon-ele-"$FILENAME_POSTFIX".json
+    jq -s 'transpose | map(  add| if .z < 0 then .ele = 0 else .ele = .z end | del(.x, .y, .z, .terreng, .datakilde) )'  track-hrlatlon-"$FILENAME_POSTFIX".json ele-hoydedata-response-points-"$FILENAME_POSTFIX".json >track-hrlatlon-ele-"$FILENAME_POSTFIX".json
 
     if jq --raw-output '
 "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
@@ -255,7 +255,7 @@ create_hoydedata_gpx()
         echo "Failed to create track-ele-$FILENAME_POSTFIX.gpx"
     fi
 
-  cleanup hoydedata-response-"$FILENAME_POSTFIX".json hoydedata-response-points-"$FILENAME_POSTFIX".json track-hrlatlon-"$FILENAME_POSTFIX".json track-hrlatlon-ele-"$FILENAME_POSTFIX".json
+  cleanup ele-hoydedata-response-"$FILENAME_POSTFIX".json ele-hoydedata-response-points-"$FILENAME_POSTFIX".json track-hrlatlon-"$FILENAME_POSTFIX".json track-hrlatlon-ele-"$FILENAME_POSTFIX".json
 }
 
 get_elevation_hoydedata()
@@ -267,10 +267,10 @@ get_elevation_hoydedata()
     geonorge_url="https://ws.geonorge.no/hoydedata/v1/punkt"
     #geonorge_url="https://ws.geonorge.no/hoydedata/v1/datakilder/dtm1/punkt" # dtm1 is the only data source
     geonorge_EPSG="4258"
-    jq -r '.[] | "url = '"$geonorge_url"'?koordsys='$geonorge_EPSG'&punkter=\\["+ ( map("\\["+(.lon|tostring)+","+(.lat|tostring)+"\\]") |  join(","))+"\\]"' track-hrlatlon-grouped-"$FILENAME_POSTFIX".json >hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt
+    jq -r '.[] | "url = '"$geonorge_url"'?koordsys='$geonorge_EPSG'&punkter=\\["+ ( map("\\["+(.lon|tostring)+","+(.lat|tostring)+"\\]") |  join(","))+"\\]"' track-hrlatlon-grouped-"$FILENAME_POSTFIX".json >ele-hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt
     cleanup track-hrlatlon-grouped-"$FILENAME_POSTFIX".json
     echo "Fetching elevation data from $geonorge_url"
-    curl --silent --config hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt >hoydedata-response-"$FILENAME_POSTFIX".json
+    curl --silent --config ele-hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt >ele-hoydedata-response-"$FILENAME_POSTFIX".json
 }    
 
 merge_hr_gps_gemini() {
@@ -473,12 +473,12 @@ filter_activity()
         if merge_hr_gps_gemini $(( select_each_n_object * 5 )); then 
             create_gpx
 
-            if [ -n "$ELEVATION_CORRECTION" ]; then
+            if [ -n "$ELEVATION_HOYDEDATA" ]; then
                 # device does not provide elevation data, so fetch it from ws.geonorge.no/hoydedata/v1/punkt, and create gpx with elevation
             if get_elevation_hoydedata; then 
                 create_hoydedata_gpx
             fi
-            cleanup hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt  hoydedata-response-"$FILENAME_POSTFIX".json hoydedata-response-points-"$FILENAME_POSTFIX".json
+            cleanup ele-hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt  ele-hoydedata-response-"$FILENAME_POSTFIX".json ele-hoydedata-response-points-"$FILENAME_POSTFIX".json
             fi
 
             cleanup track-hrlatlon-"$FILENAME_POSTFIX".json
@@ -557,7 +557,7 @@ Options:
    --hr-ble                     get measure hr during the day in json (from ble hex data records)     
    --save-tmp                   save temporary files for debugging
    --clean-tmp                  remove all temporary files
-   --hoydedata                  get elevation data from ws.geonorge.no/hoydedata/v1/punkt and create track-ele.gpx
+   --ele hoydedata              get elevation data from ws.geonorge.no/hoydedata/v1/punkt and create track-ele.gpx
    --max-hr                     maximum heartrate value, default 177
    --no-heartrate               no heartrate data
    --avg-over-max-hr            set 6 measurements after and before hr over max hr to average
@@ -572,10 +572,18 @@ EOF
             SAVE_TEMPS=true
             ;;
         --clean-tmp)
-            cleanup track-hrlatlon-*.json track-hrlatlon-grouped-*.json hoydedata-*.json hoydedata-*.txt heartrate-*.log heartrate-*.hex gps-*.hex gps-*.log grep-*.log sportmode-times*.log
+            cleanup track-hrlatlon-*.json track-hrlatlon-grouped-*.json ele-hoydedata-*.json ele-hoydedata-*.txt heartrate-*.log heartrate-*.hex gps-*.hex gps-*.log grep-*.log sportmode-times*.log
             ;;
-        --hoydedata)
-            ELEVATION_CORRECTION=true
+        --ele)
+            case "$2" in
+                hoydedata)
+                            ELEVATION_HOYDEDATA=true
+                            shift
+                            ;;
+                        *)  echo >&2 "ERROR: $2 elevation provider not implemented"
+                            exit 1
+                            ;;
+            esac
             ;;
         --dir)
             LOG_DIR="$2"
