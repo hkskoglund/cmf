@@ -28,6 +28,11 @@ RECBYTECUTPOS_GPS=54
 RECVALUE_HEARTRATE="0053"
 RECCMD_HEARTRATE="0001"
 
+ERROR_NO_ADB=1
+ERROR_NO_LOG_DATE=2
+ERROR_NO_GPS_ACTIVITY=3
+ERROR_UNKNOWN_ELEVATION_PROVIDER=4
+
 cleanup() {
     [ -z "$SAVE_TEMPS" ] && rm -f "$@"
 }
@@ -274,7 +279,7 @@ get_elevation_hoydedata()
 }    
 
 merge_hr_gps_gemini() {
-  GROUP_BY_SECONDS=${1:-60}
+  GROUP_BY_SECONDS=$(( ${1:-60} ))
   # watchband logs gps and heartrate data separately each 5 seconds, so we need to merge them
   jq --slurp '
     sort_by(.timestamp) |
@@ -353,7 +358,7 @@ check_adb_installed()
     # Check if adb is installed
     if ! command -v adb 1>/dev/null 2>/dev/null; then
         echo "adb could not be found. Please ensure adb is installed and added to your PATH."
-        exit 1
+        exit $ERROR_NO_ADB
     fi
 }
 
@@ -404,7 +409,7 @@ parse_sportmode_times()
 check_log_file_specified() {
     if [ -z "$LOG_FILE" ]; then
         echo "No date specified. Use --date [LOG_DATE] in YYYYMMDD format."
-        exit 1
+        exit "$ERROR_NO_LOG_DATE"
     fi
 }
 
@@ -423,7 +428,7 @@ filter_activity()
 # deepseek: paste Using - - means paste will read from standard input twice, effectively combining every two lines into one
     if ! grep --context=2 't-sportModeValue timeResult.*support gps:01$' "$LOG_FILE" | grep -E "sportType|sportTimes" | paste --delimiters=" " - - >sportmode-times-"$LOG_DATE".log; then 
         echo "No GPS activities found in log file" >&2
-        exit 1
+        exit "$ERROR_NO_GPS_ACTIVITY"
     else
     echo "Found $(wc -l <sportmode-times-"$LOG_DATE".log) GPS activities in log file"
     fi
@@ -581,7 +586,7 @@ EOF
                             shift
                             ;;
                         *)  echo >&2 "ERROR: $2 elevation provider not implemented"
-                            exit 1
+                            exit "$ERROR_UNKNOWN_ELEVATION_PROVIDER"
                             ;;
             esac
             ;;
