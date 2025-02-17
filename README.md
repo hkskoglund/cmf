@@ -17,7 +17,8 @@ Converts heartrate and gps data from cmf watch app log file to gpx
     --no-heartrate               no heartrate data
     --avg-over-max-hr            set 6 measurements after and before hr over max hr to average
     --force-heartrate [value]    force heartrate to value
-    --parse-hr-string            parses hr hex string 
+    --parse-hr-string            parses hr hex string
+    --pick-every-nth             pick every nth heartrate/gps point for merging
     --help                       this information
 ```
 

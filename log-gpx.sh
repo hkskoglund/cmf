@@ -274,7 +274,7 @@ get_elevation_hoydedata()
 }    
 
 merge_hr_gps_gemini() {
-  GROUP_BY_SECONDS=5
+  GROUP_BY_SECONDS=${1:-60}
   # watchband logs gps and heartrate data separately each 5 seconds, so we need to merge them
   jq --slurp '
     sort_by(.timestamp) |
@@ -425,7 +425,7 @@ filter_activity()
         echo "No GPS activities found in log file" >&2
         exit 1
     else
-    echo "Found $(wc -l <sportmode-times.log) GPS activities in log file"
+    echo "Found $(wc -l <sportmode-times-"$LOG_DATE".log) GPS activities in log file"
     fi
 
     # first filter hex data from log file
@@ -447,8 +447,22 @@ filter_activity()
         FILENAME_POSTFIX=$(get_filename_postfix "$SPORTMODE_LINE_COUNTER")
         start_time=$(eval echo \$SPORTMODE_START_TIME_"$SPORTMODE_LINE_COUNTER")
         stop_time=$(eval echo \$SPORTMODE_STOP_TIME_"$SPORTMODE_LINE_COUNTER")
-        jq 'select(.timestamp >='"$start_time"' and .timestamp <='"$stop_time"')' heartrate-"$LOG_FILE_DATE".log >heartrate-"$FILENAME_POSTFIX".log
-        jq 'select(.timestamp >='"$start_time"' and .timestamp <='"$stop_time"')' gps-"$LOG_FILE_DATE".log >gps-"$FILENAME_POSTFIX".log
+        select_each_n_object=${OPTION_PICK_EVERY_NTH:-1}
+        jq  --slurp --compact-output '
+                    to_entries[]
+                    | select(.key % '"$select_each_n_object"' == 0) 
+                    | .value 
+                    | select(.timestamp >='"$start_time"' and .timestamp <='"$stop_time"') 
+                    | .timestamp_utc = (.timestamp | strftime("%Y-%m-%dT%H:%M:%SZ"))' heartrate-"$LOG_FILE_DATE".log >heartrate-"$FILENAME_POSTFIX".log
+
+        jq  --slurp --compact-output '
+                    to_entries[] 
+                    | select(.key % '"$select_each_n_object"' == 0) 
+                    | .value 
+                    | select(.timestamp >='"$start_time"' and .timestamp <='"$stop_time"')
+                    | .timestamp_utc = (.timestamp | strftime("%Y-%m-%dT%H:%M:%SZ"))' gps-"$LOG_FILE_DATE".log >gps-"$FILENAME_POSTFIX".log
+
+            
 
         if [ -n "$OPTION_NO_HEARTRATE" ]; then
             echo "Skipping heartrate data"
@@ -456,7 +470,7 @@ filter_activity()
             touch heartrate-"$FILENAME_POSTFIX".log
         fi
 
-        if merge_hr_gps_gemini; then 
+        if merge_hr_gps_gemini $(( select_each_n_object * 5 )); then 
             create_gpx
 
             if [ -n "$ELEVATION_CORRECTION" ]; then
@@ -549,6 +563,7 @@ Options:
    --avg-over-max-hr            set 6 measurements after and before hr over max hr to average
    --force-heartrate [value]    force heartrate to value
    --parse-hr-string            parses hr hex string 
+   --pick-every-nth             pick every nth heartrate/gps point for merging
    --help                       this information
 EOF
             exit 0
@@ -603,7 +618,11 @@ EOF
             ;;
         --gpx)
             filter_activity
-            ;;            
+            ;;
+        --pick-every-nth)
+           OPTION_PICK_EVERY_NTH=$(($2))
+           shift
+           ;;            
         --parse-hr-string)
            echo "$2" | read_hex_rec $RECVALUE_HEARTRATE $RECCMD_HEARTRATE
            shift
