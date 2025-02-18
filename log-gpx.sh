@@ -592,7 +592,18 @@ EOF
             case "$2" in
                 hoydedata)
                             case "$LANG" in 
-                               n?_NO*)  ELEVATION_HOYDEDATA=true ;;
+                               n?_NO*) 
+                                         # verify connection to api, 504 Gateway Time-out after 1 minute some times
+                                        api_ele_hoydedata="https://ws.geonorge.no/hoydedata/v1/openapi.json"
+                                        api_ele_hoydedata_timeout=2
+                                        echo "Testing connection to $api_ele_hoydedata timeout: ${api_ele_hoydedata_timeout}s"
+                                        if api_ele_hoydedata_http_code=$(( $(curl --silent --head --max-time $api_ele_hoydedata_timeout $api_ele_hoydedata --write-out '%{http_code}') )) && [ $api_ele_hoydedata_http_code -eq 200 ]; then 
+                                            ELEVATION_HOYDEDATA=true
+                                        else
+                                          echo >&2 "Warning: API not available $api_ele_hoydedata"
+                                        fi
+                                        ;;
+
                                *)       echo >&2 "Warning: hoydedata only covers Norway, current LANG: $LANG" ;;
                             esac
                             shift
