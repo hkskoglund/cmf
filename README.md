@@ -9,13 +9,13 @@ Converts heartrate and gps data from cmf watch app log file to gpx
     --date [YYYYMMDD]            specify log date to process
     --gpx                        create gpx from hr and gps data
     --hr                         get measured hr during the day in json (from exercisedata JSON)
-    --hr-ble                     get measure hr during the day in json (from ble hex data records)     
+    --hr-ble                     get measured hr during the day in json (from ble hex data records)     
     --save-tmp                   save temporary files for debugging
     --clean-tmp                  remove all temporary files
     --ele hoydedata              get elevation data from ws.geonorge.no/hoydedata/v1/punkt and create track-ele.gpx
     --max-hr                     maximum heartrate value, default 177
     --no-heartrate               no heartrate data
-    --avg-over-max-hr            set 6 measurements after and before hr over max hr to average
+    --avg-over-max-hr [N]        set N measurements after and before over max hr to average
     --force-heartrate [value]    force heartrate to value
     --parse-hr-string            parses hr hex string
     --pick-every-nth             pick every nth heartrate/gps point for merging

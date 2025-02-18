@@ -164,11 +164,10 @@ filter_heartrate()
 
     # filter 6*5 seconds after heartrate above MAX_HEARTRATE and 6*5 seconds before
     # this filter was created to remove supurious high heartrate values
-    avg_measurement_over_max_hr=6
     if [ -n "$OPTION_AVG_OVER_MAX_HR" ]; then
         cp heartrate-"$LOG_FILE_DATE".log heartrate-"$LOG_FILE_DATE"-original.log
         average_heartrate=$(jq --slurp 'map(.heartrate) | (add / length) | round' heartrate-"$LOG_FILE_DATE"-original.log )
-        echo "Setting $avg_measurement_over_max_hr measurements after and before heartrate over $MAX_HEARTRATE to average $average_heartrate"
+        echo "Setting $OPTION_AVG_OVER_MAX_HR_MEASUREMENTS measurements after and before heartrate over $MAX_HEARTRATE to average $average_heartrate"
         jq --slurp --compact-output '
             reduce .[] as $item (
             {skip: 0, result: []};
@@ -176,7 +175,7 @@ filter_heartrate()
                     .skip -= 1 | .result += [$item | .heartrate = '"$average_heartrate"'] 
                 elif $item.heartrate > '"$MAX_HEARTRATE"' then 
                     ("Forward pass found over max hr "+( $item | tostring) | debug)  as $_ |  # Print $item to stderr
-                    .result += [$item] | .skip = '"$avg_measurement_over_max_hr"'
+                    .result += [$item] | .skip = '"$OPTION_AVG_OVER_MAX_HR_MEASUREMENTS"'
                 else 
                     .result += [$item]
                 end) | .result | reverse |
@@ -186,7 +185,7 @@ filter_heartrate()
                 if .skip > 0 then 
                     .skip -= 1 | .result += [$item | .heartrate = '"$average_heartrate"']
                 elif $item.heartrate > '"$MAX_HEARTRATE"' then
-                    .skip = '"$avg_measurement_over_max_hr"' | .result += [$item | .heartrate = '"$average_heartrate"']
+                    .skip = '"$OPTION_AVG_OVER_MAX_HR_MEASUREMENTS"' | .result += [$item | .heartrate = '"$average_heartrate"']
                 else 
                     .result += [$item]
                 end) | .result | reverse | .[]' "heartrate-$LOG_FILE_DATE-original.log" > "heartrate-$LOG_FILE_DATE.log"
@@ -564,22 +563,22 @@ while [ $# -gt 0 ]; do
 Usage: $0 --pull --date YYYYMMDD --gpx
 Converts heartrate and gps data from cmf watch app log file to gpx
 Options:
-   --pull                       pull watchband log files from mobile phone which contains the hex data for heartrate and gps
-   --dir                        log file directory
-   --date [YYYYMMDD]            specify log date to process
-   --gpx                        create gpx from hr and gps data
-   --hr                         get measured hr during the day in json (from exercisedata JSON)
-   --hr-ble                     get measure hr during the day in json (from ble hex data records)     
-   --save-tmp                   save temporary files for debugging
-   --clean-tmp                  remove all temporary files
-   --ele hoydedata              get elevation data from ws.geonorge.no/hoydedata/v1/punkt and create track-ele.gpx
-   --max-hr                     maximum heartrate value, default 177
-   --no-heartrate               no heartrate data
-   --avg-over-max-hr            set 6 measurements after and before hr over max hr to average
-   --force-heartrate [value]    force heartrate to value
-   --parse-hr-string            parses hr hex string 
-   --pick-every-nth             pick every nth heartrate/gps point for merging
-   --help                       this information
+    --pull                       pull watchband log files from mobile phone which contains the hex data for heartrate and gps
+    --dir                        log file directory
+    --date [YYYYMMDD]            specify log date to process
+    --gpx                        create gpx from hr and gps data
+    --hr                         get measured hr during the day in json (from exercisedata JSON)
+    --hr-ble                     get measured hr during the day in json (from ble hex data records)     
+    --save-tmp                   save temporary files for debugging
+    --clean-tmp                  remove all temporary files
+    --ele hoydedata              get elevation data from ws.geonorge.no/hoydedata/v1/punkt and create track-ele.gpx
+    --max-hr                     maximum heartrate value, default 177
+    --no-heartrate               no heartrate data
+    --avg-over-max-hr [N]        set N measurements after and before over max hr to average
+    --force-heartrate [value]    force heartrate to value
+    --parse-hr-string            parses hr hex string 
+    --pick-every-nth             pick every nth heartrate/gps point for merging
+    --help                       this information
 EOF
             exit 0
             ;;
@@ -636,6 +635,11 @@ EOF
             ;;
         --avg-over-max-hr)
             OPTION_AVG_OVER_MAX_HR=true
+            OPTION_AVG_OVER_MAX_HR_MEASUREMENTS=$(( $2 ))
+            if [ $OPTION_AVG_OVER_MAX_HR_MEASUREMENTS -eq 0 ]; then
+              OPTION_AVG_OVER_MAX_HR_MEASUREMENTS=6
+            fi
+            shift
             ;;
         --force-heartrate)
             OPTION_FORCE_HEARTRATE=true
