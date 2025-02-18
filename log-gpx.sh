@@ -273,9 +273,17 @@ get_elevation_hoydedata()
     #geonorge_url="https://ws.geonorge.no/hoydedata/v1/datakilder/dtm1/punkt" # dtm1 is the only data source
     geonorge_EPSG="4258"
     jq -r '.[] | "url = '"$geonorge_url"'?koordsys='$geonorge_EPSG'&punkter=\\["+ ( map("\\["+(.lon|tostring)+","+(.lat|tostring)+"\\]") |  join(","))+"\\]"' track-hrlatlon-grouped-"$FILENAME_POSTFIX".json >ele-hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt
-    cleanup track-hrlatlon-grouped-"$FILENAME_POSTFIX".json
+    cleanup track-hrlatlon-grouped-"$FILENAME_POSTFIX".json ele-hoydedata-response-"$FILENAME_POSTFIX".json
     echo "Fetching elevation data from $geonorge_url"
-    curl --silent --config ele-hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt >ele-hoydedata-response-"$FILENAME_POSTFIX".json
+    curl_response_json=$(curl  --verbose --silent --config ele-hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt --output ele-hoydedata-response-"$FILENAME_POSTFIX".json --write-out '%{json}')
+    curl_response_exitcode=$?
+    if [ $curl_response_exitcode -ne 0 ]; then 
+        # output curl json status on error
+        jq . <<EOF
+$curl_response_json
+EOF
+    fi
+    return $curl_response_exitcode
 }    
 
 merge_hr_gps_gemini() {
@@ -482,6 +490,8 @@ filter_activity()
                 # device does not provide elevation data, so fetch it from ws.geonorge.no/hoydedata/v1/punkt, and create gpx with elevation
             if get_elevation_hoydedata; then 
                 create_hoydedata_gpx
+            else
+              echo >&2 "ERROR: failed to get elevation from hoydedata"
             fi
             cleanup ele-hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt  ele-hoydedata-response-"$FILENAME_POSTFIX".json ele-hoydedata-response-points-"$FILENAME_POSTFIX".json
             fi
@@ -582,7 +592,10 @@ EOF
         --ele)
             case "$2" in
                 hoydedata)
-                            ELEVATION_HOYDEDATA=true
+                            case "$LANG" in 
+                               n?_NO*)  ELEVATION_HOYDEDATA=true ;;
+                               *)       echo >&2 "Warning: hoydedata only covers Norway, current LANG: $LANG" ;;
+                            esac
                             shift
                             ;;
                         *)  echo >&2 "ERROR: $2 elevation provider not implemented"
