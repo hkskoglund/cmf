@@ -274,15 +274,7 @@ get_elevation_hoydedata()
     jq --raw-output '.[] | "url = '"$geonorge_url"'?koordsys='$geonorge_EPSG'&punkter=\\["+ ( map("\\["+(.lon|tostring)+","+(.lat|tostring)+"\\]") |  join(","))+"\\]"' track-hrlatlon-grouped-"$FILENAME_POSTFIX".json >ele-hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt
     cleanup track-hrlatlon-grouped-"$FILENAME_POSTFIX".json ele-hoydedata-response-"$FILENAME_POSTFIX".json
     echo "Fetching elevation data from $geonorge_url"
-    curl_response_json=$(curl --silent --config ele-hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt --output ele-hoydedata-response-"$FILENAME_POSTFIX".json --write-out '%{json}')
-    curl_response_exitcode=$?
-    if [ $curl_response_exitcode -ne 0 ]; then 
-        # output curl json status on error
-        jq . <<EOF
-$curl_response_json
-EOF
-    fi
-    return $curl_response_exitcode
+    curl --silent --config ele-hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt > ele-hoydedata-response-"$FILENAME_POSTFIX".json
 }    
 
 merge_hr_gps_gemini() {
