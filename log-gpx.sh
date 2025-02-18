@@ -599,7 +599,7 @@ EOF
                                         api_ele_hoydedata="https://ws.geonorge.no/hoydedata/v1/openapi.json"
                                         api_ele_hoydedata_timeout=2
                                         echo "Testing connection to $api_ele_hoydedata timeout: ${api_ele_hoydedata_timeout}s"
-                                        api_ele_hoydedata_http_code="$(( $(curl --silent --max-time $api_ele_hoydedata_timeout $api_ele_hoydedata --write-out '%{http_code}' --output /dev/null) ))"
+                                        api_ele_hoydedata_http_code="$(( $(curl --silent --head --max-time $api_ele_hoydedata_timeout $api_ele_hoydedata --write-out '%{http_code}' --output /dev/null) ))"
                                         if [ "$api_ele_hoydedata_http_code" -eq 200 ]; then 
                                             ELEVATION_HOYDEDATA=true
                                         else
