@@ -274,7 +274,7 @@ get_elevation_hoydedata()
     jq --raw-output '.[] | "url = '"$geonorge_url"'?koordsys='$geonorge_EPSG'&punkter=\\["+ ( map("\\["+(.lon|tostring)+","+(.lat|tostring)+"\\]") |  join(","))+"\\]"' track-hrlatlon-grouped-"$FILENAME_POSTFIX".json >ele-hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt
     cleanup track-hrlatlon-grouped-"$FILENAME_POSTFIX".json ele-hoydedata-response-"$FILENAME_POSTFIX".json
     echo "Fetching elevation data from $geonorge_url"
-    curl_response_json=$(curl  --verbose --silent --config ele-hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt --output ele-hoydedata-response-"$FILENAME_POSTFIX".json --write-out '%{json}')
+    curl_response_json=$(curl --silent --config ele-hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt --output ele-hoydedata-response-"$FILENAME_POSTFIX".json --write-out '%{json}')
     curl_response_exitcode=$?
     if [ $curl_response_exitcode -ne 0 ]; then 
         # output curl json status on error
@@ -591,20 +591,23 @@ EOF
         --ele)
             case "$2" in
                 hoydedata)
+                            api_ele_hoydedata="https://ws.geonorge.no/hoydedata/v1/openapi.json"
                             case "$LANG" in 
                                n?_NO*) 
                                          # verify connection to api, 504 Gateway Time-out after 1 minute some times
+                                        # Test connection to the API to ensure it is available
                                         api_ele_hoydedata="https://ws.geonorge.no/hoydedata/v1/openapi.json"
                                         api_ele_hoydedata_timeout=2
                                         echo "Testing connection to $api_ele_hoydedata timeout: ${api_ele_hoydedata_timeout}s"
-                                        if api_ele_hoydedata_http_code=$(( $(curl --silent --head --max-time $api_ele_hoydedata_timeout $api_ele_hoydedata --write-out '%{http_code}') )) && [ $api_ele_hoydedata_http_code -eq 200 ]; then 
+                                        api_ele_hoydedata_http_code="$(( $(curl --silent --max-time $api_ele_hoydedata_timeout $api_ele_hoydedata --write-out '%{http_code}' --output /dev/null) ))"
+                                        if [ "$api_ele_hoydedata_http_code" -eq 200 ]; then 
                                             ELEVATION_HOYDEDATA=true
                                         else
                                           echo >&2 "Warning: API not available $api_ele_hoydedata"
                                         fi
                                         ;;
 
-                               *)       echo >&2 "Warning: hoydedata only covers Norway, current LANG: $LANG" ;;
+                               *)       echo >&2 "Warning: $api_ele_hoydedata only covers Norway, current LANG: $LANG" ;;
                             esac
                             shift
                             ;;
