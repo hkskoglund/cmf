@@ -34,13 +34,13 @@ ERROR_NO_GPS_ACTIVITY=3
 ERROR_UNKNOWN_ELEVATION_PROVIDER=4
 
 cleanup() {
-    [ -z "$SAVE_TEMPS" ] && rm -f "$@"
+    [ -z "$SAVE_TEMPS" ] && rm --force "$@"
 }
 
 print_utc_time()
 # $1 timestamp
 {
-   date --utc -d @"$1" +"%Y-%m-%dT%H:%M:%SZ"
+date --utc --date="@$1" +"%Y-%m-%dT%H:%M:%SZ"
 }
 
 get_signed_number()
@@ -133,7 +133,7 @@ filter_log()
     recpayload="$3"
     rec_bytecutpos="$4"
 
-    grep -A5 "h0-RecValue：$RECVALUE RecCmd:$RECCMD" "$LOG_FILE" | tee grep-"$RECVALUE-$RECCMD-$recpayload".log | grep -i "$recpayload" | cut --bytes="$rec_bytecutpos"-
+    grep --after-context=5 "h0-RecValue：$RECVALUE RecCmd:$RECCMD" "$LOG_FILE" | tee grep-"$RECVALUE-$RECCMD-$recpayload".log | grep --ignore-case "$recpayload" | cut --bytes="$rec_bytecutpos"-
     cleanup grep-"$RECVALUE-$RECCMD-$recpayload".log
 }
 
@@ -160,7 +160,7 @@ filter_heartrate()
     # logfile typo in ExeciseDatas -> ExerciseDatas
    
     cleanup heartrate-"$LOG_FILE_DATE".hex
-    grep '.*WatchDataUpload-getExeciseDatas_start.*"abilityId":"'$RECVALUE_OUTDOOR_HEARTRATE'"' "$LOG_FILE" |  tee grep-heartrate-"$LOG_FILE_DATE".log | cut -b89- | jq -sr  '.[][] | select(.abilityId=="'$RECVALUE_OUTDOOR_HEARTRATE'") | .startTime+.datas' |  read_hex_rec $RECVALUE_OUTDOOR_HEARTRATE $RECCMD_OUTDOOR_HEARTRATE >heartrate-"$LOG_FILE_DATE".log
+    grep '.*WatchDataUpload-getExeciseDatas_start.*"abilityId":"'$RECVALUE_OUTDOOR_HEARTRATE'"' "$LOG_FILE" |  tee grep-heartrate-"$LOG_FILE_DATE".log | cut --bytes=89- | jq --slurp --raw-output '.[][] | select(.abilityId=="'$RECVALUE_OUTDOOR_HEARTRATE'") | .startTime+.datas' |  read_hex_rec $RECVALUE_OUTDOOR_HEARTRATE $RECCMD_OUTDOOR_HEARTRATE >heartrate-"$LOG_FILE_DATE".log
 
     # filter 6*5 seconds after heartrate above MAX_HEARTRATE and 6*5 seconds before
     # this filter was created to remove supurious high heartrate values
@@ -202,7 +202,7 @@ filter_heartrate_strava()
 # seems like all heartrate data is available in dataList, so we can just grep that
 {
     cleanup heartrate-"$LOG_FILE_DATE".hex
-    grep -o 'dataList:.*' "$LOG_FILE" |  tee grep-heartrate-"$LOG_FILE_DATE".log | cut -b10- | jq -s '.[][] | { timestamp : .timeStamp | tonumber, heartrate: .hr }' >heartrate-"$LOG_FILE_DATE".log
+    grep --only-matching 'dataList:.*' "$LOG_FILE" | tee grep-heartrate-"$LOG_FILE_DATE".log | cut --bytes=10- | jq --slurp '.[][] | { timestamp : .timeStamp | tonumber, heartrate: .hr }' >heartrate-"$LOG_FILE_DATE".log
     cleanup grep-heartrate-"$LOG_FILE_DATE".log heartrate-"$LOG_FILE_DATE".hex
 }
 
@@ -214,17 +214,17 @@ filter_gps()
     # also this is INFO debug level, which may not be turned off
   
     cleanup  gps-"$LOG_FILE_DATE".hex
-    grep ".*l-GpsData" "$LOG_FILE" |  tee grep-gpsdata-"$LOG_FILE_DATE".log | cut -b48- | fold --width=$((24*16)) | read_hex_rec $RECVALUE_GPS $RECCMD_GPS >gps-"$LOG_FILE_DATE".log
+    grep ".*l-GpsData" "$LOG_FILE" |  tee grep-gpsdata-"$LOG_FILE_DATE".log | cut --bytes=48- | fold --width=$((24*16)) | read_hex_rec $RECVALUE_GPS $RECCMD_GPS >gps-"$LOG_FILE_DATE".log
     cleanup grep-gpsdata-"$LOG_FILE_DATE".log gps-"$LOG_FILE_DATE".hex
 }
 
 create_hoydedata_gpx()
 {
 
-    jq -s '[ .[].punkter.[] ]' ele-hoydedata-response-"$FILENAME_POSTFIX".json >ele-hoydedata-response-points-"$FILENAME_POSTFIX".json
+    jq --slurp '[ .[].punkter.[] ]' ele-hoydedata-response-"$FILENAME_POSTFIX".json >ele-hoydedata-response-points-"$FILENAME_POSTFIX".json
 
     # with help from chatgpt ai
-    jq -s 'transpose | map(  add| if .z < 0 then .ele = 0 else .ele = .z end | del(.x, .y, .z, .terreng, .datakilde) )'  track-hrlatlon-"$FILENAME_POSTFIX".json ele-hoydedata-response-points-"$FILENAME_POSTFIX".json >track-hrlatlon-ele-"$FILENAME_POSTFIX".json
+    jq --slurp 'transpose | map( add | if .z < 0 then .ele = 0 else .ele = .z end | del(.x, .y, .z, .terreng, .datakilde) )' track-hrlatlon-"$FILENAME_POSTFIX".json ele-hoydedata-response-points-"$FILENAME_POSTFIX".json > track-hrlatlon-ele-"$FILENAME_POSTFIX".json
 
     if jq --raw-output '
 "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
@@ -265,13 +265,13 @@ create_hoydedata_gpx()
 get_elevation_hoydedata()
 {
     #group into array of arrays with 50 in each array, due to api limit
-    jq -n '[inputs | . as $arr | range(0; $arr | length; 50) | $arr[.:(. + 50)]]' track-hrlatlon-"$FILENAME_POSTFIX".json >track-hrlatlon-grouped-"$FILENAME_POSTFIX".json
+    jq --null-input '[inputs | . as $arr | range(0; $arr | length; 50) | $arr[.:(. + 50)]]' track-hrlatlon-"$FILENAME_POSTFIX".json >track-hrlatlon-grouped-"$FILENAME_POSTFIX".json
 
     # add elevation to points, create curl url config pointlist for each group for ws.geonorge.no/hoydedata/v1/punkt
     geonorge_url="https://ws.geonorge.no/hoydedata/v1/punkt"
     #geonorge_url="https://ws.geonorge.no/hoydedata/v1/datakilder/dtm1/punkt" # dtm1 is the only data source
     geonorge_EPSG="4258"
-    jq -r '.[] | "url = '"$geonorge_url"'?koordsys='$geonorge_EPSG'&punkter=\\["+ ( map("\\["+(.lon|tostring)+","+(.lat|tostring)+"\\]") |  join(","))+"\\]"' track-hrlatlon-grouped-"$FILENAME_POSTFIX".json >ele-hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt
+    jq --raw-output '.[] | "url = '"$geonorge_url"'?koordsys='$geonorge_EPSG'&punkter=\\["+ ( map("\\["+(.lon|tostring)+","+(.lat|tostring)+"\\]") |  join(","))+"\\]"' track-hrlatlon-grouped-"$FILENAME_POSTFIX".json >ele-hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt
     cleanup track-hrlatlon-grouped-"$FILENAME_POSTFIX".json ele-hoydedata-response-"$FILENAME_POSTFIX".json
     echo "Fetching elevation data from $geonorge_url"
     curl_response_json=$(curl  --verbose --silent --config ele-hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt --output ele-hoydedata-response-"$FILENAME_POSTFIX".json --write-out '%{json}')
@@ -385,7 +385,7 @@ pull_watchband()
 get_filename_postfix()
 {
     # $1 counter
-    date --utc -d @"$(eval echo \$SPORTMODE_START_TIME_"$1")" +%Y%m%d_%H%M%S
+    date --utc --date=@"$(eval echo \$SPORTMODE_START_TIME_"$1")" +%Y%m%d_%H%M%S
 }
 
 parse_sportmode_times()
@@ -508,14 +508,14 @@ convert_json_hr_to_csv()
 {
     FILE_HR_CSV="${FILE_HR%.json}".csv
     echo "timestamp,heartrate" > "$FILE_HR_CSV"
-    if jq -r '.[] | "\(.timestamp * 1000),\(.heartrate)"' "$FILE_HR" >> "$FILE_HR_CSV"; then 
+    if jq --raw-output '.[] | "\(.timestamp * 1000),\(.heartrate)"' "$FILE_HR" >> "$FILE_HR_CSV"; then 
         echo "Created $FILE_HR_CSV"
     fi
 }
 
 filter_hr_exercisedata() {
-    grep "WatchDataUpload-getExeciseDatas_start\[{\"abilityId\":\"$RECVALUE_HEARTRATE\"" "$LOG_FILE" | cut -b 89- | jq -rs '.[].[] | select(.abilityId=="'$RECVALUE_HEARTRATE'") | .startTime+.datas' | 
-    if read_hex_rec $RECVALUE_HEARTRATE $RECCMD_HEARTRATE | jq -s 'map({
+    grep --extended-regexp "WatchDataUpload-getExeciseDatas_start\[{\"abilityId\":\"$RECVALUE_HEARTRATE\"" "$LOG_FILE" | cut --bytes=89- | jq --slurp --raw-output '.[].[] | select(.abilityId=="'$RECVALUE_HEARTRATE'") | .startTime+.datas' | 
+    if read_hex_rec $RECVALUE_HEARTRATE $RECCMD_HEARTRATE | jq --slurp 'map({
         timestamp : .timestamp,
         timestamp_date: (.timestamp | strftime("%Y-%m-%dT%H:%M:%SZ")), # UTC date format
         heartrate : .heartrate
@@ -529,7 +529,7 @@ filter_hr_exercisedata() {
 filter_hr_ble() {
      # group_by timestamp, only select first element in group, provided by gemini AI 2.0 Flash
 
-    if filter_heartrate_cmd_0001 | jq -s 'group_by(.timestamp)
+    if filter_heartrate_cmd_0001 | jq --slurp 'group_by(.timestamp)
         | map( 
             {
                 timestamp: .[0].timestamp,
@@ -573,9 +573,9 @@ Options:
     --clean-tmp                  remove all temporary files
     --ele hoydedata              get elevation data from ws.geonorge.no/hoydedata/v1/punkt and create track-ele.gpx
     --max-hr                     maximum heartrate value, default 177
-    --no-heartrate               no heartrate data
+    --no-hr                      no heartrate data
     --avg-over-max-hr [N]        set N measurements after and before over max hr to average
-    --force-heartrate [value]    force heartrate to value
+    --force-hr [value]           force heartrate to value
     --parse-hr-string            parses hr hex string 
     --pick-every-nth             pick every nth heartrate/gps point for merging
     --help                       this information
@@ -630,7 +630,7 @@ EOF
             MAX_HEARTRATE="$2"
             shift
             ;;
-        --no-heartrate)
+        --no-hr)
             OPTION_NO_HEARTRATE=true
             ;;
         --avg-over-max-hr)
@@ -641,7 +641,7 @@ EOF
             fi
             shift
             ;;
-        --force-heartrate)
+        --force-hr)
             OPTION_FORCE_HEARTRATE=true
             OPTION_FORCE_HEARTRATE_VALUE="$2"
             shift

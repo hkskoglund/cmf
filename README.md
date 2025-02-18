@@ -14,9 +14,9 @@ Converts heartrate and gps data from cmf watch app log file to gpx
     --clean-tmp                  remove all temporary files
     --ele hoydedata              get elevation data from ws.geonorge.no/hoydedata/v1/punkt and create track-ele.gpx
     --max-hr                     maximum heartrate value, default 177
-    --no-heartrate               no heartrate data
+    --no-hr                      no heartrate data
     --avg-over-max-hr [N]        set N measurements after and before over max hr to average
-    --force-heartrate [value]    force heartrate to value
+    --force-hr [value]           force heartrate to value
     --parse-hr-string            parses hr hex string
     --pick-every-nth             pick every nth heartrate/gps point for merging
     --help                       this information
