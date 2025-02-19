@@ -264,17 +264,38 @@ create_hoydedata_gpx()
 
 get_elevation_hoydedata()
 {
-    #group into array of arrays with 50 in each array, due to api limit
+    # group into array of arrays with 50 in each array, due to api limit
     jq --null-input '[inputs | . as $arr | range(0; $arr | length; 50) | $arr[.:(. + 50)]]' track-hrlatlon-"$FILENAME_POSTFIX".json >track-hrlatlon-grouped-"$FILENAME_POSTFIX".json
 
     # add elevation to points, create curl url config pointlist for each group for ws.geonorge.no/hoydedata/v1/punkt
     geonorge_url="https://ws.geonorge.no/hoydedata/v1/punkt"
     #geonorge_url="https://ws.geonorge.no/hoydedata/v1/datakilder/dtm1/punkt" # dtm1 is the only data source
     geonorge_EPSG="4258"
-    jq --raw-output '.[] | "url = '"$geonorge_url"'?koordsys='$geonorge_EPSG'&punkter=\\["+ ( map("\\["+(.lon|tostring)+","+(.lat|tostring)+"\\]") |  join(","))+"\\]"' track-hrlatlon-grouped-"$FILENAME_POSTFIX".json >ele-hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt
+    # create a curl url and output for each group with 50 points
+    jq --raw-output \
+--arg url "$geonorge_url" \
+--arg epsg "$geonorge_EPSG" \
+--arg filename_postfix "$FILENAME_POSTFIX" '
+  to_entries[] | 
+  "url = " + $url + "?koordsys=" + $epsg + "&punkter=\\[" +
+  ( .value | map("\\[" + (.lon|tostring) + "," + (.lat|tostring) + "\\]") | join(",") ) +
+  "\\] " + "\n"+
+  "output = \"ele-hoydedata-response-" + $filename_postfix + "_"+ (("0000" + (.key | tostring)) | .[-4:]) + ".json\""
+' "track-hrlatlon-grouped-$FILENAME_POSTFIX.json" > "ele-hoydedata-pointlist-urls-$FILENAME_POSTFIX.txt"
+
     cleanup track-hrlatlon-grouped-"$FILENAME_POSTFIX".json ele-hoydedata-response-"$FILENAME_POSTFIX".json
     echo "Fetching elevation data from $geonorge_url"
-    curl --silent --config ele-hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt > ele-hoydedata-response-"$FILENAME_POSTFIX".json
+    curl_ele_hoydedata_response_exitcode=0
+    curl_ele_hoydedata_response_json="$(curl --silent --config ele-hoydedata-pointlist-urls-"$FILENAME_POSTFIX".txt --output '%{json}')"
+    curl_ele_hoydedata_response_exitcode=$?
+    if  [ $curl_ele_hoydedata_response_exitcode -eq 0 ]; then 
+        # merge individual response files together into one big file
+        cat ele-hoydedata-response-"$FILENAME_POSTFIX"_*.json >ele-hoydedata-response-"$FILENAME_POSTFIX".json
+    else
+      jq --null-input --argjson curl_ele_hoydedata_response_json "$curl_ele_hoydedata_response_json" "$curl_ele_hoydedata_response_json" >&2
+    fi
+    cleanup ele-hoydedata-response-"$FILENAME_POSTFIX"-*.json
+    return $curl_ele_hoydedata_response_exitcode
 }    
 
 merge_hr_gps_gemini() {
